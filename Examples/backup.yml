@@ -1,0 +1,46 @@
+name: BackupPipeline_$(Date:yyyyMMdd)$(Rev:.r)
+trigger: none
+
+
+pool:
+  #vmImage: 'windows-latest'
+
+  name: 'Default'
+
+variables:
+  - group: 'ADO Backup Restore'  
+  - name: 'buildConfiguration'
+    value: 'Debug'
+  - name: 'dotnetVersion'
+    value: '9.0.x'
+
+jobs:
+- job: BackupJob
+  displayName: 'Backup Azure DevOps'
+
+  steps:  
+    - checkout: Self
+      persistCredentials: true   
+    - task: AzureDevOpsBackupTask@0
+      displayName: 'Perform Azure DevOps Backup'
+      inputs:
+        BackupLicenseKey: '$(Backup.LicenseKey)'
+        Pat: '$(Backup.AdoPat.RO)'  #'$(System.AccessToken)'
+        BackupRoot: '$(Backup.Root)'
+        Projects: 
+        Verbose: true
+        BackupMode: 'Incremental'
+        SkipGit: false
+        SkipBuilds: false
+
+    # Upload CLI log files for troubleshooting and audit trail
+    - task: PublishBuildArtifacts@1
+      displayName: 'Upload Backup Logs'
+      condition: always()  # Upload logs even if backup fails
+      inputs:
+        PathtoPublish: '$(Backup.Root)/logs'
+        ArtifactName: 'BackupLogs-$(Build.BuildNumber)'
+        publishLocation: 'Container'
+      continueOnError: true  # Don't fail pipeline if logs can't be uploaded
+    
+ 

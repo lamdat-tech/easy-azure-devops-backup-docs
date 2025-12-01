@@ -1,0 +1,116 @@
+name: RestorePipeline_$(Date:yyyyMMdd)$(Rev:.r)
+parameters:
+  - name: 'projectsToRestore'
+    displayName: 'Projects to Restore'
+    type: string
+    default: 'USNovaRailWay'
+  - name: 'targetProject'
+    displayName: 'Target Project Name'
+    type: string
+    default: 'RestoreTestProject'
+  - name: 'gitRepositories'
+    displayName: 'Git Repositories to Restore'
+    type: string
+    default: ' '
+  - name: 'buildDefinitions'
+    displayName: 'Build Definitions to Restore'
+    type: string
+    default: 'Push-notification-pull-ci'
+  - name: 'workitemsToRestore'
+    displayName: 'Work Items to Restore'
+    type: string
+    default: ' '
+  - name: 'QueriesFolderPath'
+    displayName: 'Queries Folder Path to Restore'
+    type: string
+    default: ' '
+  
+  - name: 'dryRun'
+    displayName: 'Dry Run (Preview Changes)'
+    type: boolean
+    default: false  
+  - name: 'skipGit'
+    displayName: 'Skip Git Repositories'
+    type: boolean
+    default: true
+  - name: 'skipBuilds'
+    displayName: 'Skip Build Definitions'
+    type: boolean
+    default: false
+  - name: 'skipWorkItems'
+    displayName: 'Skip Work Items'
+    type: boolean
+    default: true
+  - name: 'skipQueries'
+    displayName: 'Skip Queries'
+    type: boolean
+    default: true    
+  - name: 'skipVariables'
+    displayName: 'Skip Variables'
+    type: boolean
+    default: true
+
+    
+  
+
+trigger: none
+
+
+pool:
+  #vmImage: 'windows-latest'
+
+  name: 'Default'
+
+variables:
+  - group: 'ADO Backup Restore'  
+  - name: 'buildConfiguration'
+    value: 'Debug'
+  - name: 'dotnetVersion'
+    value: '9.0.x'
+ 
+  
+
+jobs:
+- job: RestoreJob
+  displayName: 'Restore Azure DevOps'
+
+  steps:  
+    - checkout: Self
+      persistCredentials: true   
+
+    - task: AzureDevOpsRestoreTask@0
+      displayName: 'Perform Azure DevOps Restore'
+      inputs:
+        BackupLicenseKey: '$(Backup.LicenseKey)'
+        Pat: '$(Backup.AdoPat.RW)'  #'$(System.AccessToken)'
+        BackupRoot: '$(Backup.Root)'
+        Projects:  '${{ parameters.projectsToRestore }}'  # Source project(s) from backup
+        TargetProject: '${{ parameters.targetProject }}'  # Target project to restore into
+        TargetOrganizationUrl: ''  # Leave empty to restore to same organization
+        TargetPat: ''  # Leave empty to use same PAT as source
+        DryRun: ${{ parameters.dryRun }}  # Set to true to preview changes without applying them
+        Verbose: true
+        
+        # Skip flags - set to true to skip specific resource types
+        SkipGit: ${{ parameters.skipGit }}
+        SkipBuilds: ${{ parameters.skipBuilds }}
+        SkipWorkItems: ${{ parameters.skipWorkItems }}
+        SkipVariables: ${{ parameters.skipVariables }}
+        SkipQueries: ${{ parameters.SkipQueries }}
+        
+        # Resource-specific filters (optional)
+        GitRepositories: '${{ parameters.gitRepositories }}'  # Comma-separated list of repository names (empty = all)
+        BuildDefinitions: '${{ parameters.buildDefinitions }}'  # Comma-separated list of build definition names (empty = all)
+        WorkItemIds: '${{ parameters.workitemsToRestore }}'  # Comma-separated list of work item IDs (empty = all)
+        BypassRules: true  # Bypass work item validation rules
+        QueriesFolderPath: '${{ parameters.QueriesFolderPath }}'  # Specific folder path for queries (empty = all)
+
+    # Upload CLI log files for troubleshooting and audit trail
+    - task: PublishBuildArtifacts@1
+      displayName: 'Upload Restore Logs'
+      condition: always()  # Upload logs even if restore fails
+      inputs:
+        PathtoPublish: '$(Backup.Root)/logs'
+        ArtifactName: 'RestoreLogs-$(Build.BuildNumber)'
+        publishLocation: 'Container'
+      continueOnError: true  # Don't fail pipeline if logs can't be uploaded
