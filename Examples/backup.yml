@@ -4,7 +4,7 @@ parameters:
   - name: 'projectsToBackup'
     displayName: 'Projects to Backup'
     type: string
-    default: ''  # Empty = all projects
+    default: '*'  # * = all projects, or specify comma-separated project names
   
   - name: 'backupMode'
     displayName: 'Backup Mode'
