@@ -46,15 +46,15 @@ parameters:
   
   # Git-specific options
   - name: 'gitRepositories'
-    displayName: 'Git Repositories (comma-separated, empty = all)'
+    displayName: 'Git Repositories (comma-separated, * = all)'
     type: string
-    default: ''
+    default: '*'  # * = all repositories, or specify comma-separated names
   
   # Build-specific options
   - name: 'buildDefinitions'
-    displayName: 'Build Definitions (comma-separated, empty = all)'
+    displayName: 'Build Definitions (comma-separated, * = all)'
     type: string
-    default: ''
+    default: '*'  # * = all definitions, or specify comma-separated names
   
   - name: 'maxBuilds'
     displayName: 'Maximum Builds per Definition'
@@ -79,9 +79,9 @@ parameters:
   
   # Queries-specific options
   - name: 'queriesFolderPath'
-    displayName: 'Queries Folder Path (empty = all)'
+    displayName: 'Queries Folder Path (* = all)'
     type: string
-    default: ''
+    default: '*'  # * = all queries, or specify folder path like 'Shared Queries/Team A'
 
 trigger: none
 
