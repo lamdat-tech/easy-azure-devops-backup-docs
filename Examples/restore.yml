@@ -1,64 +1,94 @@
 name: RestorePipeline_$(Date:yyyyMMdd)$(Rev:.r)
+
 parameters:
   - name: 'projectsToRestore'
-    displayName: 'Projects to Restore'
+    displayName: 'Projects to Restore (Source)'
     type: string
     default: 'USNovaRailWay'
+  
   - name: 'targetProject'
     displayName: 'Target Project Name'
     type: string
     default: 'RestoreTestProject'
-  - name: 'gitRepositories'
-    displayName: 'Git Repositories to Restore'
+  
+  - name: 'targetOrganizationUrl'
+    displayName: 'Target Organization URL (empty = same org)'
     type: string
-    default: ' '
-  - name: 'buildDefinitions'
-    displayName: 'Build Definitions to Restore'
+    default: ''
+  
+  - name: 'targetPat'
+    displayName: 'Target PAT (empty = use source PAT)'
     type: string
-    default: 'Push-notification-pull-ci'
-  - name: 'workitemsToRestore'
-    displayName: 'Work Items to Restore'
-    type: string
-    default: ' '
-  - name: 'QueriesFolderPath'
-    displayName: 'Queries Folder Path to Restore'
-    type: string
-    default: ' '
+    default: ''
   
   - name: 'dryRun'
     displayName: 'Dry Run (Preview Changes)'
     type: boolean
-    default: false  
-  - name: 'skipGit'
-    displayName: 'Skip Git Repositories'
-    type: boolean
-    default: true
-  - name: 'skipBuilds'
-    displayName: 'Skip Build Definitions'
+    default: false
+  
+  - name: 'restoreAll'
+    displayName: 'Restore All Components'
     type: boolean
     default: false
-  - name: 'skipWorkItems'
-    displayName: 'Skip Work Items'
-    type: boolean
-    default: true
-  - name: 'skipQueries'
-    displayName: 'Skip Queries'
-    type: boolean
-    default: true    
-  - name: 'skipVariables'
-    displayName: 'Skip Variables'
-    type: boolean
-    default: true
-
-    
   
+  - name: 'includeGit'
+    displayName: 'Include Git Repositories'
+    type: boolean
+    default: false
+  
+  - name: 'includeBuilds'
+    displayName: 'Include Build Definitions'
+    type: boolean
+    default: true
+  
+  - name: 'includeWorkItems'
+    displayName: 'Include Work Items'
+    type: boolean
+    default: false
+  
+  - name: 'includeVariables'
+    displayName: 'Include Pipeline Variables'
+    type: boolean
+    default: false
+  
+  - name: 'includeQueries'
+    displayName: 'Include Shared Queries'
+    type: boolean
+    default: false
+  
+  # Git-specific options
+  - name: 'gitRepositories'
+    displayName: 'Git Repositories (comma-separated, empty = all)'
+    type: string
+    default: ''
+  
+  # Build-specific options
+  - name: 'buildDefinitions'
+    displayName: 'Build Definitions (comma-separated, empty = all)'
+    type: string
+    default: 'Push-notification-pull-ci'
+  
+  # Work Items-specific options
+  - name: 'workItemIds'
+    displayName: 'Work Item IDs (comma-separated, empty = all)'
+    type: string
+    default: ''
+  
+  - name: 'bypassRules'
+    displayName: 'Bypass Work Item Validation Rules'
+    type: boolean
+    default: true
+  
+  # Queries-specific options
+  - name: 'queriesFolderPath'
+    displayName: 'Queries Folder Path (empty = all)'
+    type: string
+    default: ''
 
 trigger: none
 
-
 pool:
   #vmImage: 'windows-latest'
-
   name: 'Default'
 
 variables:
@@ -67,8 +97,6 @@ variables:
     value: 'Debug'
   - name: 'dotnetVersion'
     value: '9.0.x'
- 
-  
 
 jobs:
 - job: RestoreJob
@@ -80,30 +108,41 @@ jobs:
 
     - task: AzureDevOpsRestoreTask@0
       displayName: 'Perform Azure DevOps Restore'
+      env:
+        ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey) 
       inputs:
         BackupLicenseKey: '$(Backup.LicenseKey)'
         Pat: '$(Backup.AdoPat.RW)'  #'$(System.AccessToken)'
         BackupRoot: '$(Backup.Root)'
-        Projects:  '${{ parameters.projectsToRestore }}'  # Source project(s) from backup
+        Projects: '${{ parameters.projectsToRestore }}'  # Source project(s) from backup
         TargetProject: '${{ parameters.targetProject }}'  # Target project to restore into
-        TargetOrganizationUrl: ''  # Leave empty to restore to same organization
-        TargetPat: ''  # Leave empty to use same PAT as source
+        ${{ if ne(parameters.targetOrganizationUrl, '') }}:
+          TargetOrganizationUrl: '${{ parameters.targetOrganizationUrl }}'
+        ${{ if ne(parameters.targetPat, '') }}:
+          TargetPat: '${{ parameters.targetPat }}'
         DryRun: ${{ parameters.dryRun }}  # Set to true to preview changes without applying them
         Verbose: true
         
-        # Skip flags - set to true to skip specific resource types
-        SkipGit: ${{ parameters.skipGit }}
-        SkipBuilds: ${{ parameters.skipBuilds }}
-        SkipWorkItems: ${{ parameters.skipWorkItems }}
-        SkipVariables: ${{ parameters.skipVariables }}
-        SkipQueries: ${{ parameters.SkipQueries }}
+        # Component selection - use include-based flags (v0.6.0+)
+        RestoreAll: ${{ parameters.restoreAll }}
+        IncludeGit: ${{ parameters.includeGit }}
+        IncludeBuilds: ${{ parameters.includeBuilds }}
+        IncludeWorkItems: ${{ parameters.includeWorkItems }}
+        IncludeVariables: ${{ parameters.includeVariables }}
+        IncludeQueries: ${{ parameters.includeQueries }}
         
-        # Resource-specific filters (optional)
-        GitRepositories: '${{ parameters.gitRepositories }}'  # Comma-separated list of repository names (empty = all)
-        BuildDefinitions: '${{ parameters.buildDefinitions }}'  # Comma-separated list of build definition names (empty = all)
-        WorkItemIds: '${{ parameters.workitemsToRestore }}'  # Comma-separated list of work item IDs (empty = all)
-        BypassRules: true  # Bypass work item validation rules
-        QueriesFolderPath: '${{ parameters.QueriesFolderPath }}'  # Specific folder path for queries (empty = all)
+        # Git-specific options
+        GitRepositories: '${{ parameters.gitRepositories }}'
+        
+        # Build-specific options
+        BuildDefinitions: '${{ parameters.buildDefinitions }}'
+        
+        # Work Items-specific options
+        WorkItemIds: '${{ parameters.workItemIds }}'
+        BypassRules: ${{ parameters.bypassRules }}
+        
+        # Queries-specific options
+        QueriesFolderPath: '${{ parameters.queriesFolderPath }}'
 
     # Upload CLI log files for troubleshooting and audit trail
     - task: PublishBuildArtifacts@1

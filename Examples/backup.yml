@@ -1,10 +1,92 @@
 name: BackupPipeline_$(Date:yyyyMMdd)$(Rev:.r)
-trigger: none
 
+parameters:
+  - name: 'projectsToBackup'
+    displayName: 'Projects to Backup'
+    type: string
+    default: ''  # Empty = all projects
+  
+  - name: 'backupMode'
+    displayName: 'Backup Mode'
+    type: string
+    default: 'Incremental'
+    values:
+      - 'Full'
+      - 'Incremental'
+  
+  - name: 'backupAll'
+    displayName: 'Backup All Components'
+    type: boolean
+    default: true
+  
+  - name: 'includeGit'
+    displayName: 'Include Git Repositories'
+    type: boolean
+    default: false
+  
+  - name: 'includeBuilds'
+    displayName: 'Include Build Definitions'
+    type: boolean
+    default: false
+  
+  - name: 'includeWorkItems'
+    displayName: 'Include Work Items'
+    type: boolean
+    default: false
+  
+  - name: 'includeVariables'
+    displayName: 'Include Pipeline Variables'
+    type: boolean
+    default: false
+  
+  - name: 'includeQueries'
+    displayName: 'Include Shared Queries'
+    type: boolean
+    default: false
+  
+  # Git-specific options
+  - name: 'gitRepositories'
+    displayName: 'Git Repositories (comma-separated, empty = all)'
+    type: string
+    default: ''
+  
+  # Build-specific options
+  - name: 'buildDefinitions'
+    displayName: 'Build Definitions (comma-separated, empty = all)'
+    type: string
+    default: ''
+  
+  - name: 'maxBuilds'
+    displayName: 'Maximum Builds per Definition'
+    type: number
+    default: 100
+  
+  - name: 'days'
+    displayName: 'Days Back for Builds (0 = all)'
+    type: number
+    default: 0
+  
+  # Work Items-specific options
+  - name: 'minWorkItemId'
+    displayName: 'Minimum Work Item ID (0 = from start)'
+    type: number
+    default: 0
+  
+  - name: 'maxWorkItemId'
+    displayName: 'Maximum Work Item ID (0 = to end)'
+    type: number
+    default: 0
+  
+  # Queries-specific options
+  - name: 'queriesFolderPath'
+    displayName: 'Queries Folder Path (empty = all)'
+    type: string
+    default: ''
+
+trigger: none
 
 pool:
   #vmImage: 'windows-latest'
-
   name: 'Default'
 
 variables:
@@ -20,18 +102,45 @@ jobs:
 
   steps:  
     - checkout: Self
-      persistCredentials: true   
+      persistCredentials: true
+      
     - task: AzureDevOpsBackupTask@0
       displayName: 'Perform Azure DevOps Backup'
+      env:
+        ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)  # Pass secret directly as environment variable
       inputs:
         BackupLicenseKey: '$(Backup.LicenseKey)'
         Pat: '$(Backup.AdoPat.RO)'  #'$(System.AccessToken)'
         BackupRoot: '$(Backup.Root)'
-        Projects: 
+        Projects: '${{ parameters.projectsToBackup }}'
         Verbose: true
-        BackupMode: 'Incremental'
-        SkipGit: false
-        SkipBuilds: false
+        BackupMode: '${{ parameters.backupMode }}'
+        
+        # Component selection - use include-based flags (v0.6.0+)
+        BackupAll: ${{ parameters.backupAll }}
+        IncludeGit: ${{ parameters.includeGit }}
+        IncludeBuilds: ${{ parameters.includeBuilds }}
+        IncludeWorkItems: ${{ parameters.includeWorkItems }}
+        IncludeVariables: ${{ parameters.includeVariables }}
+        IncludeQueries: ${{ parameters.includeQueries }}
+        
+        # Git-specific options
+        GitRepositories: '${{ parameters.gitRepositories }}'
+        
+        # Build-specific options
+        BuildDefinitions: '${{ parameters.buildDefinitions }}'
+        MaxBuilds: '${{ parameters.maxBuilds }}'
+        ${{ if gt(parameters.days, 0) }}:
+          Days: '${{ parameters.days }}'
+        
+        # Work Items-specific options
+        ${{ if gt(parameters.minWorkItemId, 0) }}:
+          MinWorkItemId: '${{ parameters.minWorkItemId }}'
+        ${{ if gt(parameters.maxWorkItemId, 0) }}:
+          MaxWorkItemId: '${{ parameters.maxWorkItemId }}'
+        
+        # Queries-specific options
+        QueriesFolderPath: '${{ parameters.queriesFolderPath }}'
 
     # Upload CLI log files for troubleshooting and audit trail
     - task: PublishBuildArtifacts@1
@@ -42,5 +151,3 @@ jobs:
         ArtifactName: 'BackupLogs-$(Build.BuildNumber)'
         publishLocation: 'Container'
       continueOnError: true  # Don't fail pipeline if logs can't be uploaded
-    
- 
