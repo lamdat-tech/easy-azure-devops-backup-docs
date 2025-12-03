@@ -25,31 +25,31 @@ Example: Build definitions reference Git repositories, so repositories must be r
 ## Dependency Graph
 
 ```
-???????????????????????????????????????????????????????????????
-?                      RESTORE ORDER                           ?
-?                    (Top to Bottom)                           ?
-???????????????????????????????????????????????????????????????
+┌─────────────────────────────────────────────────────────────┐
+│                      RESTORE ORDER                           │
+│                    (Top to Bottom)                           │
+└─────────────────────────────────────────────────────────────┘
 
 1. Git Repositories
-   ??? No dependencies
+   ├─ No dependencies
        (Always safe to restore first)
 
 2. Pipeline Variables / Variable Groups
-   ??? No resource dependencies
+   ├─ No resource dependencies
        (Can restore anytime, typically after Git)
 
 3. Build Definitions
-   ??? Depends on: Git Repositories (for repository references)
-   ??? Depends on: Variable Groups (optional, for pipeline variables)
+   ├─ Depends on: Git Repositories (for repository references)
+   └─ Depends on: Variable Groups (optional, for pipeline variables)
 
 4. Work Items
-   ??? Depends on: Git Repositories (optional, for commit links)
-   ??? Depends on: Build Definitions (optional, for build links)
+   ├─ Depends on: Git Repositories (optional, for commit links)
+   └─ Depends on: Build Definitions (optional, for build links)
 
 5. Shared Queries
-   ??? Depends on: Work Items (queries search for work items)
-   ??? Depends on: Areas (for area path filters)
-   ??? Depends on: Iterations (for iteration path filters)
+   ├─ Depends on: Work Items (queries search for work items)
+   ├─ Depends on: Areas (for area path filters)
+   └─ Depends on: Iterations (for iteration path filters)
 ```
 
 ## Backup Order
@@ -94,20 +94,20 @@ The restore order is **critical** because creating dependent resources before th
 ```bash
 # MUST restore in this order for successful operation:
 
-1. ? Git Repositories FIRST
-   ??? Creates repositories that build definitions will reference
+1. ✓ Git Repositories FIRST
+   └─ Creates repositories that build definitions will reference
 
-2. ? Pipeline Variables SECOND  
-   ??? Creates variable groups that pipelines may reference
+2. ✓ Pipeline Variables SECOND  
+   └─ Creates variable groups that pipelines may reference
 
-3. ? Build Definitions THIRD
-   ??? Now can reference existing Git repos and variables
+3. ✓ Build Definitions THIRD
+   └─ Now can reference existing Git repos and variables
 
-4. ? Work Items FOURTH
-   ??? Can link to commits (Git) and builds
+4. ✓ Work Items FOURTH
+   └─ Can link to commits (Git) and builds
 
-5. ? Shared Queries LAST
-   ??? Queries search for work items (must exist first)
+5. ✓ Shared Queries LAST
+   └─ Queries search for work items (must exist first)
 ```
 
 ### Restore Command Execution Order
@@ -127,19 +127,19 @@ When you run `adobackup.exe restore-all`, resources are restored in this order:
 
 ### Selective Restore Order
 
-If you use skip flags or individual restore commands, **you must respect dependencies**:
+If you use selective restore with include flags or individual restore commands, **you must respect dependencies**:
 
 #### ✅ SAFE Selective Restores
 
 ```bash
 # Restore only Git (no dependencies)
-adobackup.exe restore-all --skip-builds --skip-workitems --skip-variables --skip-queries
+adobackup.exe restore-all --include-git
 
 # Restore Git + Variables (no dependency between them)
-adobackup.exe restore-all --skip-builds --skip-workitems --skip-queries
+adobackup.exe restore-all --include-git --include-variables
 
 # Restore everything except queries (queries depend on work items)
-adobackup.exe restore-all --skip-queries
+adobackup.exe restore-all --include-git --include-builds --include-workitems --include-variables
 ```
 
 #### ❌ UNSAFE Selective Restores
@@ -147,11 +147,11 @@ adobackup.exe restore-all --skip-queries
 ```bash
 # BAD: Restore builds without Git repos
 # Will fail if build definitions reference repositories that don't exist
-adobackup.exe restore-all --skip-git --skip-workitems --skip-variables --skip-queries
+adobackup.exe restore-all --include-builds
 
 # BAD: Restore queries without work items
 # Queries will be created but won't find any work items to query
-adobackup.exe restore-all --skip-git --skip-builds --skip-workitems --skip-variables
+adobackup.exe restore-all --include-queries
 ```
 
 ## Resource Dependencies Explained
@@ -304,27 +304,27 @@ adobackup.exe restore-all --dry-run -v
 # Look for warnings about missing dependencies in output
 ```
 
-### ? DO: Restore Complete Dependency Chains
+### ✅ DO: Restore Complete Dependency Chains
 
 ```bash
-# If restoring builds, also restore Git repos
-adobackup.exe restore-all --skip-workitems --skip-queries -v
-# ? Includes: Git + Variables + Builds (complete chain)
+# If restoring builds, also restore Git repos and variables
+adobackup.exe restore-all --include-git --include-variables --include-builds -v
+# ✓ Includes: Git + Variables + Builds (complete chain)
 ```
 
-### ? DON'T: Restore Without Dependencies
+### ❌ DON'T: Restore Without Dependencies
 
 ```bash
 # BAD: Builds without repos
-adobackup.exe restore-all --skip-git -v
-# ? Build definitions will reference non-existent repositories
+adobackup.exe restore-all --include-builds -v
+# ❌ Build definitions will reference non-existent repositories
 
 # BAD: Queries without work items  
-adobackup.exe queries-restore -v
-# ? Queries will be created but find nothing
+adobackup.exe restore-all --include-queries -v
+# ❌ Queries will be created but find nothing
 ```
 
-### ? DON'T: Assume Broken References Fix Themselves
+### ❌ DON'T: Assume Broken References Fix Themselves
 
 ```bash
 # If you restore in wrong order, re-running won't automatically fix broken references
@@ -470,10 +470,11 @@ Quick reference table for resource dependencies:
 ### Scenario 1: Restore Only Builds and Their Dependencies
 
 ```bash
-# Automatic dependency resolution
+# Restore builds with their dependencies
 adobackup.exe restore-all \
-  --skip-workitems \
-  --skip-queries \
+  --include-git \
+  --include-variables \
+  --include-builds \
   -v
 
 # This restores:
@@ -494,7 +495,7 @@ adobackup.exe restore-all \
   -v
 
 # Automatic order:
-# 1. Git ? 2. Variables ? 3. Builds ? 4. Work Items ? 5. Queries
+# 1. Git → 2. Variables → 3. Builds → 4. Work Items → 5. Queries
 ```
 
 ### Scenario 3: Incremental Restore (Add Resources)
@@ -549,10 +550,10 @@ adobackup.exe restore-all \
 adobackup.exe restore-all -v
 
 # ✅ CORRECT: Selective with dependencies
-adobackup.exe restore-all --skip-workitems --skip-queries -v
+adobackup.exe restore-all --include-git --include-variables --include-builds -v
 
 # ❌ WRONG: Builds without Git
-adobackup.exe restore-all --skip-git -v
+adobackup.exe restore-all --include-builds -v
 
 # ✅ CORRECT: Step-by-step respecting order
 adobackup.exe git-restore -p "Project" -v

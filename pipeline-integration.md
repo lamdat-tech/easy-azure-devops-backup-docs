@@ -35,7 +35,7 @@ Create a variable group named **"ADO Backup Restore"** with the following variab
 | `Backup.Root` | Backup root directory path | ❌ No |
 
 **To create the variable group:**
-1. Go to Pipelines ? Library
+1. Go to Pipelines → Library
 2. Click "+ Variable group"
 3. Name it "ADO Backup Restore"
 4. Add the variables listed above
@@ -60,13 +60,13 @@ Ensure your build agent has:
 Your repository should have:
 ```
 /
-??? azure-pipelines/
-?   ??? backup-pipeline.yml
-?   ??? restore-pipeline.yml
-??? backups/                    # Created by pipeline
-?   ??? logs/
-?   ??? metadata/
-??? README.md
+├── azure-pipelines/
+│   ├── backup-pipeline.yml
+│   └── restore-pipeline.yml
+├── backups/                    # Created by pipeline
+│   ├── logs/
+│   └── metadata/
+└── README.md
 ```
 
 ## Backup Pipeline Examples
@@ -685,19 +685,19 @@ stages:
 
 ```
 azure-devops-backup-automation/
-??? azure-pipelines/
-?   ??? backup-full.yml
-?   ??? backup-incremental.yml
-?   ??? restore-test.yml
-?   ??? restore-production.yml
-??? scripts/
-?   ??? validate-backup.ps1
-?   ??? cleanup-old-backups.ps1
-?   ??? notify-backup-status.ps1
-??? docs/
-?   ??? runbook.md
-?   ??? disaster-recovery-plan.md
-??? README.md
+├── azure-pipelines/
+│   ├── backup-full.yml
+│   ├── backup-incremental.yml
+│   ├── restore-test.yml
+│   └── restore-production.yml
+├── scripts/
+│   ├── validate-backup.ps1
+│   ├── cleanup-old-backups.ps1
+│   └── notify-backup-status.ps1
+├── docs/
+│   ├── runbook.md
+│   └── disaster-recovery-plan.md
+└── README.md
 ```
 
 ## See Also
