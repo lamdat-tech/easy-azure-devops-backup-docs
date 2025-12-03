@@ -234,18 +234,7 @@ Get help when you need it:
   - Azure DevOps organization size
   - Utility version (`adobackup.exe --version`)
 
-## 📋 Document Versions
 
-| Document | Last Updated | Version |
-|----------|--------------|---------|
-| README | January 2025 | 1.0 |
-| Getting Started | January 2025 | 1.0 |
-| Command Reference | January 2025 | 1.0 |
-| Pipeline Integration | January 2025 | 1.0 |
-| Best Practices | January 2025 | 1.0 |
-| Use Cases | January 2025 | 1.0 |
-| FAQ | January 2025 | 1.0 |
-| Troubleshooting | January 2025 | 1.0 |
 
 ## 📄 License
 

@@ -463,9 +463,6 @@ adobackup.exe license-activate -k "key" -f "C:\path\to\license.lic"
 
 The utility will stop working and display a license error message. Contact Lamdat to renew your license.
 
-### Can I use one license for multiple servers?
-
-License terms vary. Contact Lamdat for multi-server licensing options.
 
 ---
 

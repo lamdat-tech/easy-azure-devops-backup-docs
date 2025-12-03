@@ -1,6 +1,13 @@
-# Getting Started with Azure DevOps Backup & Restore
+# Getting Started with Azure DevOps Backup & Restore CLI
 
-This guide will walk you through setting up and using the Azure DevOps Backup & Restore utility for the first time.
+This guide covers the command-line interface (CLI) for Azure DevOps Backup & Restore.
+
+> **💡 Recommended Approach:** For most users, we recommend using the **Azure Pipeline Tasks** instead of the CLI for automated, scheduled backups. See the [Pipeline Integration Guide](./pipeline-integration.md) to get started with pipeline tasks.
+>
+> **Use this CLI guide if you need:**
+> - Manual backup/restore operations
+> - Scripting outside of Azure Pipelines
+> - On-demand operations without pipeline setup
 
 ## Table of Contents
 
@@ -282,12 +289,17 @@ adobackup.exe restore-all ^
 
 ## Next Steps
 
-Now that you've completed your first backup and restore:
+Now that you've completed your first CLI backup and restore:
 
-1. **[Read the Command Reference](./command-reference.md)** - Learn about all available commands and options
+### Recommended: Automate with Pipeline Tasks
+
+**[Set up Pipeline Integration](./pipeline-integration.md)** - Automate backups with Azure Pipeline tasks (recommended for production)
+
+### CLI Resources
+
+1. **[Command Reference](./command-reference.md)** - Complete CLI command documentation
 2. **[Review Best Practices](./best-practices.md)** - Optimize your backup strategy
-3. **[Set up Pipeline Integration](./pipeline-integration.md)** - Automate backups with Azure Pipelines
-4. **[Explore Use Cases](./use-cases.md)** - Learn common scenarios and solutions
+3. **[Explore Use Cases](./use-cases.md)** - Common scenarios and solutions
 
 ## Common Issues
 

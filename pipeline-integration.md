@@ -1,12 +1,16 @@
-# Pipeline Integration Guide
+# Getting Started with Azure DevOps Backup & Restore Pipeline Tasks
 
-Learn how to integrate Azure DevOps Backup & Restore into your Azure Pipelines for automated, continuous backup strategies.
+**This is the recommended way to use Azure DevOps Backup & Restore.** Pipeline tasks provide automated, scheduled backups integrated directly into your Azure DevOps environment.
+
+> **💡 Start Here:** This guide will walk you through setting up automated backups using Azure Pipeline tasks.
+>
+> **Alternative:** If you need manual operations or CLI access, see [Getting Started with CLI](./getting-started.md).
 
 ## Table of Contents
 
 1. [Overview](#overview)
 2. [Prerequisites](#prerequisites)
-3. [Setting Up the Pipeline](#setting-up-the-pipeline)
+3. [Quick Start Setup](#quick-start-setup)
 4. [Backup Pipeline Examples](#backup-pipeline-examples)
 5. [Restore Pipeline Examples](#restore-pipeline-examples)
 6. [Best Practices](#best-practices)
@@ -14,12 +18,61 @@ Learn how to integrate Azure DevOps Backup & Restore into your Azure Pipelines f
 
 ## Overview
 
-Integrating the backup utility into Azure Pipelines allows you to:
-- **Automate backups** on a schedule (daily, weekly, etc.)
+### Why Use Pipeline Tasks?
+
+Using Azure Pipeline tasks for backup operations provides:
+- **Automated backups** on a schedule (daily, weekly, etc.)
+- **No infrastructure needed** - runs on Azure-hosted or self-hosted agents
+- **Built-in logging** with pipeline logs and artifacts
+- **Version control** for pipeline configuration
+- **Notifications** on backup failures via pipeline alerts
+- **Security** with centralized secret management
 - **Continuous backup** strategy with incremental mode
-- **Disaster recovery testing** with automated restore validation
-- **Audit trail** with pipeline logs and artifacts
-- **Notifications** on backup failures
+- **Audit trail** with complete pipeline history
+
+### Available Tasks
+
+- **AzureDevOpsBackupTask** - Backup Azure DevOps resources
+- **AzureDevOpsRestoreTask** - Restore Azure DevOps resources
+
+## Quick Start Setup
+
+Follow these steps to set up your first automated backup:
+
+### Step 1: Install the Extension
+
+Install the **Azure DevOps Backup & Restore** extension from the Visual Studio Marketplace or deploy it to your organization.
+
+### Step 2: Create Variable Group
+
+In your Azure DevOps project:
+1. Go to **Pipelines** → **Library**
+2. Click **+ Variable group**
+3. Name it **"ADO Backup Restore"**
+4. Add the required variables (see [Prerequisites](#prerequisites) below)
+5. Mark sensitive values as **Secret**
+6. Click **Save**
+
+### Step 3: Create Your First Backup Pipeline
+
+1. Go to **Pipelines** → **Pipelines**
+2. Click **New pipeline**
+3. Choose **Azure Repos Git** (or your source)
+4. Select your repository
+5. Choose **Starter pipeline**
+6. Replace the YAML with the [Basic Incremental Backup](#example-1-basic-incremental-backup) example below
+7. Click **Save and run**
+
+### Step 4: Configure Schedule
+
+The example pipeline includes a daily schedule. Adjust the `cron` expression to match your needs:
+- Daily at 2 AM: `"0 2 * * *"`
+- Sundays at 1 AM: `"0 1 * * 0"`
+- Weekdays at 3 AM: `"0 3 * * 1-5"`
+
+That's it! Your backups will now run automatically according to the schedule.
+
+---
 
 ## Prerequisites
 
@@ -700,9 +753,21 @@ azure-devops-backup-automation/
 └── README.md
 ```
 
+## Next Steps
+
+Now that you have pipeline tasks set up:
+
+1. **[Review Best Practices](./best-practices.md)** - Optimize your backup strategy
+2. **[Explore Use Cases](./use-cases.md)** - Common scenarios and solutions
+3. **[Troubleshooting Guide](./troubleshooting.md)** - Common issues and solutions
+
+### CLI Alternative
+
+If you need manual operations or scripting outside of pipelines:
+- **[Getting Started with CLI](./getting-started.md)** - CLI installation and usage
+- **[Command Reference](./command-reference.md)** - Complete CLI command documentation
+
 ## See Also
 
-- [Command Reference](./command-reference.md)
-- [Best Practices](./best-practices.md)
-- [Troubleshooting Guide](./troubleshooting.md)
 - [Azure Pipelines Documentation](https://docs.microsoft.com/en-us/azure/devops/pipelines/)
+- [Azure DevOps Personal Access Tokens](https://docs.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate)

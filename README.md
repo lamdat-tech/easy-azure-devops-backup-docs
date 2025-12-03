@@ -1,15 +1,27 @@
-# Azure DevOps Backup & Restore Utility
+# Azure DevOps Backup & Restore Solution
 
-A comprehensive command-line tool for backing up and restoring Azure DevOps resources across organizations and projects.
+A comprehensive solution for backing up and restoring Azure DevOps resources across organizations and projects, available as Azure Pipeline tasks or a command-line utility.
 
 ## Overview
 
-The Azure DevOps Backup & Restore Utility (`adobackup`) is a powerful tool that enables you to:
+The Azure DevOps Backup & Restore Utility enables you to:
 - **Backup** Azure DevOps resources including Git repositories, build definitions, work items, pipeline variables, and queries
 - **Restore** resources to the same or different organizations and projects
 - **Migrate** projects and resources between Azure DevOps organizations
 - **Clone** projects within the same organization
 - **Incremental backups** to capture only new or changed data since the last backup
+
+### Primary Workflow: Azure Pipeline Tasks
+
+The **recommended approach** is to use the Azure DevOps Pipeline Tasks for automated backup and restore operations:
+- **AzureDevOpsBackupTask** - For backup operations
+- **AzureDevOpsRestoreTask** - For restore operations
+
+These tasks integrate seamlessly into your CI/CD pipelines, providing scheduled automated backups and controlled restore operations.
+
+### Alternative: Command-Line Interface
+
+For manual operations, scripting, or environments without pipeline access, the CLI utility (`adobackup.exe`) provides full functionality through command-line interface. See [Command Reference](./command-reference.md) for complete CLI documentation.
 
 ## Key Features
 
@@ -32,10 +44,8 @@ The Azure DevOps Backup & Restore Utility (`adobackup`) is a powerful tool that 
 - Parallel processing for improved performance
 - Comprehensive logging and error handling
 - Metadata tracking for backup history
-- Cross-organization migration support
 
 🏢 **Enterprise Ready**
-- License-based activation system
 - Support for large-scale operations
 - Rate limiting and retry logic
 - Configurable via command-line or config file
@@ -44,48 +54,97 @@ The Azure DevOps Backup & Restore Utility (`adobackup`) is a powerful tool that 
 
 ### Prerequisites
 
-- .NET 9 Runtime
+- Azure DevOps organization and project
 - Valid Azure DevOps Personal Access Token (PAT) with appropriate permissions
 - License key (for production use)
+- For pipeline tasks: Azure Pipelines enabled in your project
+- For CLI: .NET 9 Runtime installed
 
-### Installation
+### Option 1: Using Pipeline Tasks (Recommended)
 
-1. Download the latest release from the releases page
-2. Extract to your desired location
-3. Activate your license:
-   ```bash
-   adobackup.exe license-activate -k "your-license-key"
-   ```
+**1. Install the Extension**
 
-### Basic Usage
+Install the **Azure DevOps Backup & Restore** extension from the Azure DevOps Marketplace.
 
-**Full Backup:**
-```bash
-adobackup.exe backup-all --OrganizationUrl "https://dev.azure.com/yourorg" --Pat "your-pat-token" --BackupRoot "C:\Backups"
+**2. Create a Variable Group**
+
+Create a variable group named **"ADO Backup Restore"** with:
+- `Backup.LicenseKey` (secret)
+- `Backup.AdoPat.RO` (secret, read-only PAT)
+- `Backup.AdoPat.RW` (secret, read-write PAT)
+- `Backup.Root` (backup directory path)
+
+**3. Create a Backup Pipeline**
+
+```yaml
+trigger: none
+
+schedules:
+  - cron: "0 2 * * *"  # Daily at 2 AM
+    displayName: Daily Incremental Backup
+    branches:
+      include:
+        - main
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  - group: 'ADO Backup Restore'
+
+jobs:
+- job: BackupJob
+  displayName: 'Backup Azure DevOps'
+  
+  steps:
+    - task: AzureDevOpsBackupTask@0
+      displayName: 'Perform Incremental Backup'
+      env:
+        ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
+      inputs:
+        Pat: '$(Backup.AdoPat.RO)'
+        BackupRoot: '$(Backup.Root)'
+        Projects: '*'  # All projects
+        Verbose: true
+        BackupMode: 'Incremental'
+        BackupAll: true
 ```
 
-**Incremental Backup:**
+See [Pipeline Integration Guide](./pipeline-integration.md) for complete setup instructions.
+
+### Option 2: Using CLI
+
+**1. Install**
+
+Download and extract the latest release, then activate your license:
 ```bash
-adobackup.exe backup-all -i --OrganizationUrl "https://dev.azure.com/yourorg" --Pat "your-pat-token" --BackupRoot "C:\Backups"
+adobackup.exe license-activate -k "your-license-key"
 ```
 
-**Full Restore:**
+**2. Backup**
 ```bash
-adobackup.exe restore-all --OrganizationUrl "https://dev.azure.com/yourorg" --Pat "your-pat-token" --BackupRoot "C:\Backups"
+adobackup.exe backup-all --OrganizationUrl "https://dev.azure.com/yourorg" --Pat "your-pat-token" --BackupRoot "C:\Backups" -i -v
 ```
 
-**Restore to Different Project:**
+**3. Restore**
 ```bash
-adobackup.exe restore-all -p "SourceProject" --target-project "TargetProject" --OrganizationUrl "https://dev.azure.com/yourorg" --Pat "your-pat-token" --BackupRoot "C:\Backups"
+adobackup.exe restore-all --OrganizationUrl "https://dev.azure.com/yourorg" --Pat "your-pat-token" --BackupRoot "C:\Backups" -v
 ```
+
+See [Command Reference](./command-reference.md) for all CLI commands and options.
 
 ## Documentation
 
-- **[User Guide](./user-guide.md)** - Comprehensive guide for all features
-- **[Command Reference](./command-reference.md)** - Detailed documentation for all commands
-- **[Getting Started](./getting-started.md)** - Step-by-step tutorials
-- **[Pipeline Integration](./pipeline-integration.md)** - Using with Azure Pipelines
+### Getting Started
+- **[Pipeline Integration Guide](./pipeline-integration.md)** - **Start here!** Setup Azure Pipeline tasks (recommended)
+- **[Getting Started with CLI](./getting-started.md)** - CLI installation and basic usage
+
+### Reference
+- **[Command Reference](./command-reference.md)** - Complete CLI command documentation
 - **[Best Practices](./best-practices.md)** - Recommended usage patterns
+- **[Use Cases](./use-cases.md)** - Common scenarios and examples
+
+### Help & Support
 - **[Troubleshooting](./troubleshooting.md)** - Common issues and solutions
 - **[FAQ](./faq.md)** - Frequently asked questions
 
@@ -102,14 +161,15 @@ Backup specific resources (e.g., only Git repositories or only work items).
 ### 3. Continuous Backup
 Use incremental mode in automated pipelines for continuous data protection.
 
-### 4. Compliance & Auditing
-Maintain historical backups for compliance and audit requirements.
 
 ## Architecture
 
 The utility consists of several components:
 
-- **CLI** - Command-line interface (`adobackup.exe`)
+- **Pipeline Tasks** - Azure DevOps pipeline task extensions for automated operations
+  - **AzureDevOpsBackupTask** - Backup task integration
+  - **AzureDevOpsRestoreTask** - Restore task integration
+- **CLI** - Command-line interface (`adobackup.exe`) for manual operations
 - **Core Library** - Business logic and Azure DevOps integration
 - **Services** - Backup/restore services for each resource type
 - **Azure DevOps Client** - API wrapper with rate limiting and retry logic
