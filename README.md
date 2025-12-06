@@ -37,7 +37,6 @@ For manual operations, scripting, or environments without pipeline access, the C
 - Restore to same or different project
 - Selective restore (choose specific resources)
 - Dry-run mode to preview changes
-- Work item rules bypass for different configurations
 
 ⚡ **Advanced Capabilities**
 - Incremental backup mode for continuous backup strategies
@@ -180,9 +179,9 @@ The utility consists of several components:
 | Resource Type | Backup | Restore | Incremental | Notes |
 |--------------|--------|---------|-------------|-------|
 | Git Repositories | ✅ | ✅ | ✅ | Full clone with all branches |
-| Build Definitions | ✅ | ✅ | ✅ | Includes configuration |
+| Build Definitions | ✅ |  | ✅ | Includes configuration |
 | Build History | ✅ | ✅ | ✅ | Up to 100 builds per definition - backup reference |
-| Work Items | ✅ | ✅ | ✅ | Full history and attachments |
+| Work Items | ✅ | ✅ | ✅ | All fields and attachments |
 | Pipeline Variables | ✅ | ✅ | ✅ | |
 | Queries | ✅ | ✅ | ✅ | Shared queries and folders |
 
@@ -221,7 +220,6 @@ This software requires a valid license key for production use. Contact Lamdat fo
 For support, bug reports, or feature requests:
 - Email: support@lamdat.com
 - Documentation: [docs/](./docs/)
-- Internal Documentation: [docs/internal/](./internal/)
 
  ---
 

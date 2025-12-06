@@ -110,7 +110,7 @@ adobackup.exe restore-all \
 
 ## Compliance and Auditing
 
-### Scenario 9: Regulatory Compliance Archival
+### Scenario 3: Regulatory Compliance Archival
 
 **Context:** Financial services company needs to maintain 7-year archive of all project data for regulatory compliance.
 
@@ -170,7 +170,7 @@ $report | ConvertTo-Json | Out-File "compliance-report-$(Get-Date -Format 'yyyy-
 
 ---
 
-### Scenario 10: Audit Trail for Change Management
+### Scenario 4: Audit Trail for Change Management
 
 **Context:** Track all changes to production pipelines and configurations.
 
@@ -281,7 +281,7 @@ jobs:
 
 ---
 
-### Scenario 12: Multi-Region Backup Strategy
+### Scenario 5: Multi-Region Backup Strategy
 
 **Context:** Enterprise with global operations requires geographically distributed backups.
 
@@ -313,7 +313,7 @@ az storage blob upload-batch \
 
 ## Selective Data Management
 
-### Scenario 13: Backup Only Critical Assets
+### Scenario 6: Backup Only Critical Assets
 
 **Context:** Large organization wants to backup only business-critical projects to save storage and time.
 
@@ -352,7 +352,7 @@ adobackup.exe backup-all \
 
 ---
 
-### Scenario 14: Backup Without Large Git Repositories
+### Scenario 7: Backup Without Large Git Repositories
 
 **Context:** Git repositories are backed up separately (GitHub, GitLab, etc.). Only need DevOps-specific resources.
 
