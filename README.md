@@ -179,11 +179,11 @@ The utility consists of several components:
 | Resource Type | Backup | Restore | Incremental | Notes |
 |--------------|--------|---------|-------------|-------|
 | Git Repositories | ✅ | ✅ | ✅ | Full clone with all branches |
-| Build Definitions | ✅ |  | ✅ | Includes configuration |
-| Build History | ✅ | ✅ | ✅ | Up to 100 builds per definition - backup reference |
+| Build Definitions | ✅ | ✅  |  | Includes configuration |
+| Build History | ✅ |   |   | Up to 100 builds per definition - backup reference |
 | Work Items | ✅ | ✅ | ✅ | All fields and attachments |
-| Pipeline Variables | ✅ | ✅ | ✅ | |
-| Queries | ✅ | ✅ | ✅ | Shared queries and folders |
+| Pipeline Variables | ✅ | ✅ |  | |
+| Queries | ✅ | ✅ | | Shared queries and folders |
 
 ## Permissions Required
 
