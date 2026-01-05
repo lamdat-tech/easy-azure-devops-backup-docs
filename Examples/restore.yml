@@ -9,17 +9,17 @@ parameters:
   - name: 'targetProject'
     displayName: 'Target Project Name'
     type: string
-    default: 'RestoreTestProject'
+    default: '<same>'
   
   - name: 'targetOrganizationUrl'
-    displayName: 'Target Organization URL (empty = same org)'
+    displayName: 'Target Organization URL (<same> = same org)'
     type: string
-    default: ''
+    default: '<same>'  # <same> = use source org, or specify URL like 'https://dev.azure.com/MyOrg'
   
   - name: 'targetPat'
-    displayName: 'Target PAT (empty = use source PAT)'
+    displayName: 'Target PAT (<source> = use source PAT)'
     type: string
-    default: ''
+    default: '<source>'  # <source> = use source PAT, or specify different PAT
   
   - name: 'dryRun'
     displayName: 'Dry Run (Preview Changes)'
@@ -56,17 +56,37 @@ parameters:
     type: boolean
     default: false
   
+  - name: 'includeServiceConnections'
+    displayName: 'Include Service Connections'
+    type: boolean
+    default: false
+  
+  - name: 'includePullRequests'
+    displayName: 'Include Pull Requests'
+    type: boolean
+    default: false
+  
   # Git-specific options
   - name: 'gitRepositories'
     displayName: 'Git Repositories (comma-separated, * = all)'
     type: string
     default: '*'  # * = all repositories, or specify comma-separated names
   
+  - name: 'pullRequestIds'
+    displayName: 'Pull Request IDs (comma-separated, * = all)'
+    type: string
+    default: '*'  # * = all pull requests, or specify comma-separated IDs
+  
   # Build-specific options
   - name: 'buildDefinitions'
     displayName: 'Build Definitions (comma-separated, * = all)'
     type: string
     default: '*'  # * = all definitions, or specify comma-separated names
+  
+  - name: 'serviceConnections'
+    displayName: 'Service Connections (comma-separated, * = all)'
+    type: string
+    default: '*'  # * = all service connections, or specify comma-separated names
   
   # Work Items-specific options
   - name: 'workItemIds'
@@ -130,16 +150,19 @@ jobs:
         IncludeWorkItems: ${{ parameters.includeWorkItems }}
         IncludeVariables: ${{ parameters.includeVariables }}
         IncludeQueries: ${{ parameters.includeQueries }}
+        IncludeServiceConnections: ${{ parameters.includeServiceConnections }}
+        IncludePullRequests: ${{ parameters.includePullRequests }}
         
         # Git-specific options
         GitRepositories: '${{ parameters.gitRepositories }}'
+        PullRequestIds: '${{ parameters.pullRequestIds }}'
         
         # Build-specific options
         BuildDefinitions: '${{ parameters.buildDefinitions }}'
+        ServiceConnections: '${{ parameters.serviceConnections }}'
         
         # Work Items-specific options
         WorkItemIds: '${{ parameters.workItemIds }}'
-        BypassRules: ${{ parameters.bypassRules }}
         
         # Queries-specific options
         QueriesFolderPath: '${{ parameters.queriesFolderPath }}'

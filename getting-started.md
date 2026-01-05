@@ -304,7 +304,7 @@ Understanding the limitations helps you plan your backup and restore strategy ef
 | **Work Items** | Incremental backup uses daily granularity, not exact timestamp | May backup some items twice if run multiple times per day | Incremental mode tracks last backup date (YYYY-MM-DD), not time |
 | **Work Items** | Deleted work items are recreated with new IDs during restore | Original IDs cannot be preserved | Links and relationships are recreated with new IDs |
 | **Queries** | Query definitions restored/updated as-is | Existing queries are updated with backup data | Verify area paths and iteration paths exist in project before restore |
-| **Pull Requests** | Restored as metadata only | Code changes are in Git history | Comments, reviews, and status are preserved |
+| **Pull Requests** | Full PR record is restored (title, description, comments, reviews, status, votes) | Code changes already exist in Git history from merge | PRs are recreated with all discussion and review data |
 | **Pull Requests** | PR IDs preserved only when restoring to same project | Cross-project restore may create new IDs | Work item links in PRs are preserved if work items exist |
 | **Service Connections** | Secrets/credentials are NOT backed up | Credentials will be lost | Must manually re-enter secrets after restore |
 | **Service Connections** | Pipeline authorizations must be reconfigured | Pipelines won't have access until reauthorized | Manually authorize pipelines to use connections after restore |
@@ -329,9 +329,9 @@ Understanding the limitations helps you plan your backup and restore strategy ef
 | Feature | Limitation | Recommendation |
 |---------|-----------|----------------|
 | **Secret Variables** | Pipeline variable secrets are NOT backed up | Document secrets separately; use Azure Key Vault |
+| **Service Connection Secrets** | Service connection credentials/secrets are NOT backed up | Document secrets separately; re-enter after restore |
 | **PAT Tokens** | PAT tokens used in pipelines are NOT backed up | Re-configure service connections after restore |
 | **SSH Keys** | Git SSH keys are NOT backed up | Re-upload SSH keys to target organization |
-| **Service Connections** | Service connections/endpoints are NOT backed up | Manually recreate service connections if needed |
 
 ### Restore Behavior & Important Notes
 
@@ -344,8 +344,15 @@ Understanding the limitations helps you plan your backup and restore strategy ef
 | **Variable Groups** | **Updates** existing group if found by name | Group is updated with backup data (except secrets) |
 | **Variable Groups** | **Creates** new group if doesn't exist | New variable group created |
 | **Variable Groups** | Secret values are **NOT** restored | Passwords/secrets are not backed up; must be re-entered manually |
+| **Service Connections** | **Updates** existing connection if found by name | Connection metadata updated (except secrets) |
+| **Service Connections** | Secret values/credentials are **NOT** restored | Must manually re-enter passwords, keys, certificates after restore |
+| **Service Connections** | Pipeline authorizations are **NOT** restored | Must manually authorize pipelines to use connections |
+| **Pull Requests** | **Restores** complete PR with title, description, comments, reviews, status, votes | Code changes already in Git from original merge |
+| **Pull Requests** | Work item links preserved if work items exist | Broken links if work items not restored |
+| **Pull Requests** | PR IDs preserved when restoring to same project | Cross-project restore may assign new IDs |
+| **Queries** | **Updates** existing query if found by ID | Query definition is overwritten with backup data |
+| **Queries** | **Creates** new query if doesn't exist | New query created with original structure |
 | **Git Repositories** | Uses force push by default | **Warning:** Overwrites remote history; ensure backup is correct version |
-| **Queries** | Restores folder structure and hierarchy | Original GUIDs preserved where possible |
 
 
 

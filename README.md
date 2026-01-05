@@ -5,7 +5,7 @@ A comprehensive solution for backing up and restoring Azure DevOps resources acr
 ## Overview
 
 The Azure DevOps Backup & Restore Utility enables you to:
-- **Backup** Azure DevOps resources including Git repositories, build definitions, work items, pipeline variables, and queries
+- **Backup** Azure DevOps resources including Git repositories, pull requests, build definitions, service connections, work items, pipeline variables, and queries
 - **Restore** resources to the same or different organizations and projects
 - **Migrate** projects and resources between Azure DevOps organizations
 - **Clone** projects within the same organization
@@ -27,9 +27,11 @@ For manual operations, scripting, or environments without pipeline access, the C
 
 💾 **Comprehensive Backup Coverage**
 - Git repositories (full clone with all branches and history)
+- Pull requests (metadata, comments, reviews, status)
 - Build definitions and build history
+- Service connections (metadata, credentials excluded)
 - Work items with full history and attachments
-- Pipeline variables (including secret variables)
+- Pipeline variables (secrets excluded)
 - Shared queries and query folders
 
 🔄 **Flexible Restore Options**
@@ -179,10 +181,12 @@ The utility consists of several components:
 | Resource Type | Backup | Restore | Incremental | Notes |
 |--------------|--------|---------|-------------|-------|
 | Git Repositories | ✅ | ✅ | ✅ | Full clone with all branches |
+| Pull Requests | ✅ | ✅ | | PR metadata, comments, reviews, status |
 | Build Definitions | ✅ | ✅  |  | Includes configuration |
 | Build History | ✅ |   |   | Up to 100 builds per definition - backup reference |
+| Service Connections | ✅ | ✅ | | Connection metadata (credentials excluded) |
 | Work Items | ✅ | ✅ | ✅ | All fields and attachments |
-| Pipeline Variables | ✅ | ✅ |  | |
+| Pipeline Variables | ✅ | ✅ |  | Secrets excluded |
 | Queries | ✅ | ✅ | | Shared queries and folders |
 
 ## Permissions Required
@@ -194,6 +198,7 @@ Your Azure DevOps PAT token needs the following permissions:
 - Build (Read)
 - Work Items (Read)
 - Variable Groups (Read)
+- Service Connections (Read)
 - Project and Team (Read)
 
 **For Restore:**
@@ -201,6 +206,7 @@ Your Azure DevOps PAT token needs the following permissions:
 - Build (Read, Write)
 - Work Items (Read, Write)
 - Variable Groups (Read, Write)
+- Service Connections (Read, Write)
 - Project and Team (Read, Write)
 
 ## System Requirements
