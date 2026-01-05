@@ -34,19 +34,28 @@ Example: Build definitions reference Git repositories, so repositories must be r
    ├─ No dependencies
        (Always safe to restore first)
 
-2. Pipeline Variables / Variable Groups
+2. Pull Requests
+   ├─ Depends on: Git Repositories (PRs belong to repositories)
+       (Restore after Git repositories)
+
+3. Service Connections
    ├─ No resource dependencies
        (Can restore anytime, typically after Git)
 
-3. Build Definitions
+4. Pipeline Variables / Variable Groups
+   ├─ No resource dependencies
+       (Can restore anytime, typically after Service Connections)
+
+5. Build Definitions
    ├─ Depends on: Git Repositories (for repository references)
+   ├─ Depends on: Service Connections (for deployment/resource connections)
    └─ Depends on: Variable Groups (optional, for pipeline variables)
 
-4. Work Items
+6. Work Items
    ├─ Depends on: Git Repositories (optional, for commit links)
    └─ Depends on: Build Definitions (optional, for build links)
 
-5. Shared Queries
+7. Shared Queries
    ├─ Depends on: Work Items (queries search for work items)
    ├─ Depends on: Areas (for area path filters)
    └─ Depends on: Iterations (for iteration path filters)
@@ -62,11 +71,13 @@ The backup order is more flexible than restore order because you're just capturi
 # Order doesn't affect backup functionality, but this is the logical flow:
 
 1. Git Repositories       # Foundation data
-2. Pipeline Variables     # Configuration data
-3. Build Definitions      # References Git and Variables
-4. Build History          # Historical data
-5. Work Items            # Can reference any resource
-6. Shared Queries         # Queries against work items
+2. Pull Requests          # Git-related data
+3. Service Connections    # Deployment/resource credentials
+4. Pipeline Variables     # Configuration data
+5. Build Definitions      # References Git, Service Connections, and Variables
+6. Build History          # Historical data
+7. Work Items            # Can reference any resource
+8. Shared Queries         # Queries against work items
 ```
 
 ### Backup Command Execution Order
@@ -76,11 +87,13 @@ When you run `adobackup.exe backup-all`, resources are backed up in this order:
 ```csharp
 // From BackupAllCommand.cs internal logic:
 1. Git Repositories      (parallel per repository)
-2. Build Definitions     (parallel per definition)
-3. Build History         (parallel per build)
-4. Pipeline Variables    (parallel per group)
-5. Work Items           (parallel in batches)
-6. Shared Queries        (parallel per query)
+2. Pull Requests         (parallel per pull request)
+3. Service Connections   (parallel per connection)
+4. Build Definitions     (parallel per definition)
+5. Build History         (parallel per build)
+6. Pipeline Variables    (parallel per group)
+7. Work Items           (parallel in batches)
+8. Shared Queries        (parallel per query)
 ```
 
 **Note:** Backup order doesn't create dependencies - you can backup any resource independently.
@@ -95,18 +108,24 @@ The restore order is **critical** because creating dependent resources before th
 # MUST restore in this order for successful operation:
 
 1. ✓ Git Repositories FIRST
-   └─ Creates repositories that build definitions will reference
+   └─ Creates repositories that build definitions and pull requests will reference
 
-2. ✓ Pipeline Variables SECOND  
+2. ✓ Pull Requests SECOND
+   └─ Restores pull requests that belong to Git repositories
+
+3. ✓ Service Connections THIRD
+   └─ Creates service connections that build definitions may reference
+
+4. ✓ Pipeline Variables FOURTH  
    └─ Creates variable groups that pipelines may reference
 
-3. ✓ Build Definitions THIRD
-   └─ Now can reference existing Git repos and variables
+5. ✓ Build Definitions FIFTH
+   └─ Now can reference existing Git repos, service connections, and variables
 
-4. ✓ Work Items FOURTH
+6. ✓ Work Items SIXTH
    └─ Can link to commits (Git) and builds
 
-5. ✓ Shared Queries LAST
+7. ✓ Shared Queries LAST
    └─ Queries search for work items (must exist first)
 ```
 
@@ -117,10 +136,12 @@ When you run `adobackup.exe restore-all`, resources are restored in this order:
 ```csharp
 // From RestoreAllCommand.cs execution order:
 1. Git Repositories      (RestoreGitRepositoriesAsync)
-2. Pipeline Variables    (RestorePipelineVariablesAsync)
-3. Build Definitions     (RestoreBuildDefinitionsAsync)
-4. Work Items           (RestoreWorkItemsAsync)
-5. Shared Queries        (RestoreQueriesAsync)
+2. Pull Requests         (RestorePullRequestsAsync)
+3. Service Connections   (RestoreServiceConnectionsAsync)
+4. Pipeline Variables    (RestorePipelineVariablesAsync)
+5. Build Definitions     (RestoreBuildDefinitionsAsync)
+6. Work Items           (RestoreWorkItemsAsync)
+7. Shared Queries        (RestoreQueriesAsync)
 ```
 
 **The utility enforces this order automatically** - you cannot change it when using `restore-all`.
@@ -135,11 +156,14 @@ If you use selective restore with include flags or individual restore commands, 
 # Restore only Git (no dependencies)
 adobackup.exe restore-all --include-git
 
-# Restore Git + Variables (no dependency between them)
-adobackup.exe restore-all --include-git --include-variables
+# Restore Git + Pull Requests (PRs depend on Git)
+adobackup.exe restore-all --include-git --include-pullrequests
+
+# Restore Git + Service Connections + Variables (no dependency between them)
+adobackup.exe restore-all --include-git --include-serviceconnections --include-variables
 
 # Restore everything except queries (queries depend on work items)
-adobackup.exe restore-all --include-git --include-builds --include-workitems --include-variables
+adobackup.exe restore-all --include-git --include-pullrequests --include-serviceconnections --include-builds --include-workitems --include-variables
 ```
 
 #### ❌ UNSAFE Selective Restores
@@ -161,6 +185,7 @@ adobackup.exe restore-all --include-queries
 **Dependencies:** None
 
 **Depended On By:**
+- Pull Requests (PRs belong to repositories)
 - Build Definitions (YAML pipelines reference repos)
 - Work Items (commits can be linked to work items)
 
@@ -176,7 +201,65 @@ Cause: Restored build definition before repository
 Solution: Restore Git repositories first
 ```
 
-### 2. Pipeline Variables / Variable Groups
+### 2. Pull Requests
+
+**Dependencies:**
+- Git Repositories (PRs belong to repositories)
+
+**Depended On By:** None
+
+**Why Restore After Git:**
+- Pull requests are associated with specific repositories
+- Repository must exist before PRs can be created
+- PR metadata includes repository IDs that must be valid
+
+**Important Behaviors:**
+- Pull requests are restored as metadata only (code changes are in Git history)
+- Comments, reviews, and status are preserved
+- Work item links in PRs are preserved if work items exist
+- Pull request IDs are preserved when restoring to same project
+- Can filter by status during backup: All, Active, Completed, Abandoned
+- Can restore specific PR IDs or all PRs from backup
+
+**Example Issue if Not After Git:**
+```
+Error: Repository 'RepoName' not found when restoring pull request
+Cause: Restored pull requests before Git repository
+Solution: Restore Git repositories before pull requests
+```
+
+### 3. Service Connections
+
+**Dependencies:** None (service connections are standalone credentials)
+
+**Depended On By:**
+- Build Definitions (pipelines use service connections for deployments)
+
+**Why Restore Before Builds:**
+- Build definitions may reference service connections by ID
+- Missing service connection references cause warnings (not failures)
+- Credentials/secrets must be re-entered manually after restore
+
+**Important Behaviors:**
+- Service connections are updated if they exist (not skipped)
+- **Secrets/credentials are NOT backed up** - must be manually re-configured
+- Connection metadata is preserved (type, project reference, etc.)
+- Authorization for pipelines must be reconfigured manually
+
+**Example Issue:**
+```
+Warning: Service connection 'AzureConnection' referenced in pipeline but not found
+Cause: Restored builds before service connections
+Impact: Pipeline runs but may fail during deployment steps
+Solution: Restore service connections before build definitions, then re-enter credentials
+```
+
+**Important Limitation:**
+- **Secret values/credentials are NOT backed up** - must be manually re-entered
+- After restore, go to Project Settings → Service Connections → Edit each connection
+- Re-enter passwords, keys, certificates, or other secrets
+
+### 4. Pipeline Variables / Variable Groups
 
 **Dependencies:** None (variables are standalone configuration)
 
@@ -200,19 +283,21 @@ Solution: Restore variable groups before build definitions
 - **Secret values are NOT backed up** - must be manually re-entered
 - Variable groups are updated if they exist (not skipped)
 
-### 3. Build Definitions
+### 5. Build Definitions
 
 **Dependencies:**
 - Git Repositories (for repository references)
+- Service Connections (for deployment/resource connections)
 - Variable Groups (optional, for pipeline variables)
 
 **Depended On By:**
 - Work Items (builds can be linked to work items)
 - Build History (historical build runs)
 
-**Why Restore After Git/Variables:**
+**Why Restore After Git/Service Connections/Variables:**
 - Build definitions contain repository IDs
 - YAML pipelines are stored in repositories (must exist)
+- Build definitions reference service connections for deployments
 - Variable group references are validated
 
 **Cross-Project Repository References:**
@@ -229,7 +314,7 @@ For cross-project scenarios:
 1. Restore all Git repositories first (all projects)
 2. Then restore build definitions
 
-### 4. Work Items
+### 6. Work Items
 
 **Dependencies:**
 - Git Repositories (optional, for commit links)
@@ -253,7 +338,7 @@ For cross-project scenarios:
 - Work items can **only** be restored to the same project
 - Use `--target-project` to clone to different project (creates new IDs)
 
-### 5. Shared Queries
+### 7. Shared Queries
 
 **Dependencies:**
 - Work Items (queries search for work items)
@@ -267,7 +352,8 @@ For cross-project scenarios:
 - Query will be created but return no results if work items don't exist
 - Area and iteration references are NOT updated in cross-project restore
 
-**Important Limitations:**
+**Important Behaviors:**
+- Existing queries are **updated** (not skipped) - query definition is overwritten
 - Queries keep **original project/area references** when restored to different project
 - Area paths and iteration paths are **NOT** updated automatically
 - Must manually update queries after cross-project restore
@@ -307,9 +393,9 @@ adobackup.exe restore-all --dry-run -v
 ### ✅ DO: Restore Complete Dependency Chains
 
 ```bash
-# If restoring builds, also restore Git repos and variables
-adobackup.exe restore-all --include-git --include-variables --include-builds -v
-# ✓ Includes: Git + Variables + Builds (complete chain)
+# If restoring builds, also restore Git repos, service connections, and variables
+adobackup.exe restore-all --include-git --include-serviceconnections --include-variables --include-builds -v
+# ✓ Includes: Git + Service Connections + Variables + Builds (complete chain)
 ```
 
 ### ❌ DON'T: Restore Without Dependencies
@@ -459,11 +545,13 @@ Quick reference table for resource dependencies:
 
 | Resource | Depends On | Depended On By | Restore Priority |
 |----------|-----------|----------------|------------------|
-| **Git Repositories** | None | Builds, Work Items | **1 - FIRST** |
-| **Variable Groups** | None | Builds (optional) | **2 - SECOND** |
-| **Build Definitions** | Git, Variables | Work Items | **3 - THIRD** |
-| **Work Items** | Git (optional), Builds (optional) | Queries | **4 - FOURTH** |
-| **Shared Queries** | Work Items, Areas, Iterations | None | **5 - LAST** |
+| **Git Repositories** | None | Pull Requests, Builds, Work Items | **1 - FIRST** |
+| **Pull Requests** | Git Repositories | None | **2 - SECOND** |
+| **Service Connections** | None | Builds (optional) | **3 - THIRD** |
+| **Variable Groups** | None | Builds (optional) | **4 - FOURTH** |
+| **Build Definitions** | Git, Service Connections, Variables | Work Items | **5 - FIFTH** |
+| **Work Items** | Git (optional), Builds (optional) | Queries | **6 - SIXTH** |
+| **Shared Queries** | Work Items, Areas, Iterations | None | **7 - LAST** |
 
 ## Advanced Scenarios
 
@@ -473,14 +561,16 @@ Quick reference table for resource dependencies:
 # Restore builds with their dependencies
 adobackup.exe restore-all \
   --include-git \
+  --include-serviceconnections \
   --include-variables \
   --include-builds \
   -v
 
 # This restores:
 # 1. Git Repositories (dependency of builds)
-# 2. Variable Groups (dependency of builds)  
-# 3. Build Definitions (requested)
+# 2. Service Connections (dependency of builds)
+# 3. Variable Groups (dependency of builds)  
+# 4. Build Definitions (requested)
 ```
 
 ### Scenario 2: Restore to Empty Project
@@ -495,7 +585,7 @@ adobackup.exe restore-all \
   -v
 
 # Automatic order:
-# 1. Git → 2. Variables → 3. Builds → 4. Work Items → 5. Queries
+# 1. Git → 2. Pull Requests → 3. Service Connections → 4. Variables → 5. Builds → 6. Work Items → 7. Queries
 ```
 
 ### Scenario 3: Incremental Restore (Add Resources)
@@ -536,12 +626,15 @@ adobackup.exe restore-all \
 ### Key Takeaways
 
 1. **Always restore Git repositories first** - they are the foundation
-2. **Restore variables before builds** - builds may reference them
-3. **Restore work items before queries** - queries search work items
-4. **Use `restore-all` for automatic ordering** - it handles dependencies
-5. **Use `--dry-run` to preview** - catches dependency issues early
-6. **Respect cross-project dependencies** - restore all referenced projects
-7. **Manual fixes required** for cross-project area/iteration references in queries
+2. **Restore pull requests after Git** - PRs belong to repositories
+3. **Restore service connections before builds** - builds may reference them (secrets must be re-entered)
+4. **Restore variables before builds** - builds may reference them
+5. **Restore work items before queries** - queries search work items
+6. **Use `restore-all` for automatic ordering** - it handles dependencies
+7. **Use `--dry-run` to preview** - catches dependency issues early
+8. **Respect cross-project dependencies** - restore all referenced projects
+9. **Manual fixes required** for cross-project area/iteration references in queries
+10. **Queries are updated if they exist** - existing queries are overwritten with backup data
 
 ### Quick Reference Commands
 
@@ -550,13 +643,15 @@ adobackup.exe restore-all \
 adobackup.exe restore-all -v
 
 # ✅ CORRECT: Selective with dependencies
-adobackup.exe restore-all --include-git --include-variables --include-builds -v
+adobackup.exe restore-all --include-git --include-serviceconnections --include-variables --include-builds -v
 
 # ❌ WRONG: Builds without Git
 adobackup.exe restore-all --include-builds -v
 
 # ✅ CORRECT: Step-by-step respecting order
 adobackup.exe git-restore -p "Project" -v
+adobackup.exe pullrequests-restore -p "Project" -v
+adobackup.exe serviceconnections-restore -p "Project" -v
 adobackup.exe variables-restore -p "Project" -v
 adobackup.exe build-restore -p "Project" -v
 adobackup.exe workitems-restore -p "Project" -v

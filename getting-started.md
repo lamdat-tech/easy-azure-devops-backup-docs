@@ -39,6 +39,7 @@ Create a PAT token with the following scopes:
 - Work Items: Read
 - Variable Groups: Read
 - Project and Team: Read
+- Service Connections: Read (for service connections backup)
 
 **For Restore (Read/Write operations):**
 - Code: Read & Write
@@ -46,6 +47,7 @@ Create a PAT token with the following scopes:
 - Work Items: Read & Write
 - Variable Groups: Read & Write
 - Project and Team: Read & Write
+- Service Connections: Read & Write (for service connections restore)
 
 **To create a PAT:**
 1. Go to Azure DevOps
@@ -160,7 +162,9 @@ Check the backup directory:
 C:\ADOBackups\
   └── TestProject\
       ├── git\
+      ├── pullrequests\
       ├── builds\
+      ├── serviceconnections\
       ├── workitems\
       ├── variables\
       └── queries\
@@ -299,7 +303,11 @@ Understanding the limitations helps you plan your backup and restore strategy ef
 | **Work Items** | Restore updates existing work items without adding comments | No audit trail of restore operation | Work item history shows field changes but not restore event |
 | **Work Items** | Incremental backup uses daily granularity, not exact timestamp | May backup some items twice if run multiple times per day | Incremental mode tracks last backup date (YYYY-MM-DD), not time |
 | **Work Items** | Deleted work items are recreated with new IDs during restore | Original IDs cannot be preserved | Links and relationships are recreated with new IDs |
-| **Queries** | Query definitions restored as-is | Queries maintain original project/area references | Verify area paths and iteration paths exist in project before restore |
+| **Queries** | Query definitions restored/updated as-is | Existing queries are updated with backup data | Verify area paths and iteration paths exist in project before restore |
+| **Pull Requests** | Restored as metadata only | Code changes are in Git history | Comments, reviews, and status are preserved |
+| **Pull Requests** | PR IDs preserved only when restoring to same project | Cross-project restore may create new IDs | Work item links in PRs are preserved if work items exist |
+| **Service Connections** | Secrets/credentials are NOT backed up | Credentials will be lost | Must manually re-enter secrets after restore |
+| **Service Connections** | Pipeline authorizations must be reconfigured | Pipelines won't have access until reauthorized | Manually authorize pipelines to use connections after restore |
 | **Git Repositories** | Non-fast-forward pushes fail if remote history diverged | Restore fails if repository changed after backup | See Git-specific limitations below |
 | **Azure DevOps API** | Rate limiting varies by organization tier | Backup may be throttled on high-volume operations | Reduce `MaxParallelism`, space out backups, or contact Microsoft for limit increase |
 | **Build History** | Maximum 100 builds per definition per backup run | Can't backup more than 100 builds in single run | Use `--days` parameter with incremental mode to capture builds over time, build history is kept locally for reference and cannot be restored due to Azure DevOps limitations |
