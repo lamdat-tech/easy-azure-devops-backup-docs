@@ -38,10 +38,21 @@ These options can be used with any command:
 | `--OrganizationUrl` | | string | Yes* | Azure DevOps organization URL (e.g., https://dev.azure.com/yourorg) |
 | `--Pat` | | string | Yes* | Personal Access Token for authentication |
 | `--BackupRoot` | | string | Yes* | Root directory for backups |
-| `--MaxParallelism` | | int | No | Maximum parallel operations (default: 4) |
+| `--MaxParallelism` | | int | No | Maximum parallel operations (default: 4). Controls how many resources are processed concurrently
 | `--verbose` | `-v` | flag | No | Enable verbose output |
 
 \* Can be configured in appsettings.json instead of command-line
+
+**MaxParallelism Configuration Priority:**
+1. **Command-line argument** `--MaxParallelism <value>` 
+
+**Recommended MaxParallelism Values:**
+
+| Environment | Hardware | Recommended | Reason |
+|-------------|----------|-------------|--------|
+| **Server** | 16+ cores, 1 Gbps | **6-8** | High performance |
+| **Azure Pipeline** | Hosted agents | **4-6** | Good balance for cloud agents |
+| **Debug** | Any | **1** | Sequential, easier debugging |
 
 ---
 
@@ -1067,7 +1078,49 @@ adobackup.exe pullrequests-restore ^
   -v
 ```
 
----
+### Pattern 7: Performance Optimization with MaxParallelism
+
+**High-performance backup on server (8 concurrent operations):**
+```bash
+adobackup.exe backup-all --MaxParallelism 8 -v
+```
+
+**Laptop-friendly backup (2 concurrent operations):**
+```bash
+adobackup.exe backup-all --MaxParallelism 2 -v
+```
+
+**Large repository backup with increased parallelism:**
+```bash
+adobackup.exe git-backup ^
+  -p "LargeProject" ^
+  --MaxParallelism 6 ^
+  -v
+```
+
+**Sequential backup for debugging (no parallelism):**
+```bash
+adobackup.exe backup-all --MaxParallelism 1 -v
+```
+
+**Restore with custom parallelism:**
+```bash
+adobackup.exe restore-all ^
+  --MaxParallelism 4 ^
+  --dry-run ^
+  -v
+```
+
+**Azure Pipeline with optimal settings:**
+```bash
+adobackup.exe backup-all ^
+  --OrganizationUrl "$(System.CollectionUri)" ^
+  --Pat "$(System.AccessToken)" ^
+  --BackupRoot "$(Build.ArtifactStagingDirectory)/Backups" ^
+  --MaxParallelism 6 ^
+  -i ^
+  -v
+```
 
 ## Exit Codes
 

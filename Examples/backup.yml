@@ -14,6 +14,11 @@ parameters:
       - 'Full'
       - 'Incremental'
   
+  - name: 'maxParallelism'
+    displayName: 'Maximum Parallel Operations'
+    type: number
+    default: 4
+  
   - name: 'warningBehavior'
     displayName: 'Warning Behavior'
     type: string
@@ -147,6 +152,7 @@ jobs:
         BackupLicenseKey: '$(Backup.LicenseKey)'
         Pat: '$(Backup.AdoPat.RO)'  #'$(System.AccessToken)'
         BackupRoot: '$(Backup.Root)'
+        MaxParallelism: '${{ parameters.maxParallelism }}'
         Projects: '${{ parameters.projectsToBackup }}'
         Verbose: true
         BackupMode: '${{ parameters.backupMode }}'

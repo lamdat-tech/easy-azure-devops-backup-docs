@@ -26,6 +26,11 @@ parameters:
     type: boolean
     default: false
   
+
+  - name: 'maxParallelism'
+    displayName: 'Maximum Parallel Operations'
+    type: number
+    default: 4
   - name: 'restoreAll'
     displayName: 'Restore All Components'
     type: boolean
@@ -135,6 +140,7 @@ jobs:
         Pat: '$(Backup.AdoPat.RW)'  #'$(System.AccessToken)'
         BackupRoot: '$(Backup.Root)'
         Projects: '${{ parameters.projectsToRestore }}'  # Source project(s) from backup
+        MaxParallelism: '${{ parameters.maxParallelism }}'
         TargetProject: '${{ parameters.targetProject }}'  # Target project to restore into
         ${{ if ne(parameters.targetOrganizationUrl, '') }}:
           TargetOrganizationUrl: '${{ parameters.targetOrganizationUrl }}'
@@ -176,3 +182,6 @@ jobs:
         ArtifactName: 'RestoreLogs-$(Build.BuildNumber)'
         publishLocation: 'Container'
       continueOnError: true  # Don't fail pipeline if logs can't be uploaded
+
+
+
