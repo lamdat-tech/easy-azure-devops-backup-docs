@@ -12,6 +12,8 @@ Complete reference documentation for all commands and options available in the A
   - [workitems-backup](#workitems-backup)
   - [variables-backup](#variables-backup)
   - [queries-backup](#queries-backup)
+  - [pullrequests-backup](#pullrequests-backup)
+  - [serviceconnections-backup](#serviceconnections-backup)
 - [Restore Commands](#restore-commands)
   - [restore-all](#restore-all)
   - [git-restore](#git-restore)
@@ -19,6 +21,8 @@ Complete reference documentation for all commands and options available in the A
   - [workitems-restore](#workitems-restore)
   - [variables-restore](#variables-restore)
   - [queries-restore](#queries-restore)
+  - [pullrequests-restore](#pullrequests-restore)
+  - [serviceconnections-restore](#serviceconnections-restore)
 - [License Commands](#license-commands)
   - [license-validate](#license-validate)
   - [license-activate](#license-activate)
@@ -64,15 +68,20 @@ adobackup.exe backup-all [options]
 | `--include-workitems` | | flag | false | Include work items in backup |
 | `--include-variables` | | flag | false | Include pipeline variables in backup |
 | `--include-queries` | | flag | false | Include queries in backup |
+| `--include-serviceconnections` | | flag | false | Include service connections in backup |
+| `--include-pullrequests` | | flag | false | Include pull requests in backup |
 | `--warnings-as-errors` | | flag | false | Treat warnings (partial failures) as errors - task fails on partial failures |
 | `--ignore-warnings` | | flag | false | Ignore warnings (partial failures) - task succeeds even with partial failures |
-| `--repositories` | `-r` | string | all | Comma-separated list of repository names (for Git) |
+| `--repositories` | `-r` | string | all | Comma-separated list of repository names (for Git and Pull Requests) |
 | `--definitions` | `-d` | string | all | Comma-separated list of build definition names |
 | `--max-builds` | | int | 100 | Maximum builds per definition (max: 100) |
 | `--days` | | int | all | Backup builds from last N days |
 | `--min-id` | | int | 1 | Minimum work item ID |
 | `--max-id` | | int | all | Maximum work item ID |
 | `--queries-folder-path` | `-f` | string | all | Specific query folder path |
+| `--pr-status` | | string | All | Pull request status filter: All, Active, Completed, or Abandoned |
+| `--active-pr-refresh-hours` | | int | 24 | Hours interval to refresh active PRs in incremental mode (to capture comments, work items, reviewers) |
+| `--service-connections` | | string | all | Comma-separated list of service connection names |
 
 **Component Selection Behavior:**
 - By default, `--all` is `true`, backing up all components
@@ -361,6 +370,97 @@ adobackup.exe queries-backup -p "ProjectA" -f "Epics Queries/All Active Epics" -
 
 ---
 
+### pullrequests-backup
+
+Backup pull requests with metadata, comments, reviews, and status.
+
+**Syntax:**
+```bash
+adobackup.exe pullrequests-backup [options]
+```
+
+**Options:**
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--projects` | `-p` | string | all | Comma-separated list of project names |
+| `--repositories` | `-r` | string | all | Comma-separated list of repository names |
+| `--status` | `-s` | string | All | PR status filter: All, Active, Completed, or Abandoned |
+| `--incremental` | `-i` | flag | false | Incremental mode (only new/modified PRs) |
+| `--active-pr-refresh-hours` | | int | 24 | Refresh interval (hours) for active PRs to capture updates |
+
+**Incremental Backup Behavior:**
+- **New PRs**: Always backed up (created after last backup)
+- **Closed PRs**: Backed up if closed after last backup date
+- **Active PRs**: Intelligently refreshed based on:
+  - New commits detected (LastMergeSourceCommit changed)
+  - Title or description modified
+  - Backup age exceeds `--active-pr-refresh-hours` (default: 24h)
+- **Unchanged PRs**: Skipped for efficiency
+
+**Examples:**
+
+**Backup all pull requests:**
+```bash
+adobackup.exe pullrequests-backup -v
+```
+
+**Incremental backup (only new/modified PRs):**
+```bash
+adobackup.exe pullrequests-backup -i -v
+```
+
+**Backup active PRs only:**
+```bash
+adobackup.exe pullrequests-backup --status Active -v
+```
+
+**Incremental with custom refresh interval (12 hours):**
+```bash
+adobackup.exe pullrequests-backup -i --active-pr-refresh-hours 12 -v
+```
+
+**Backup specific repositories:**
+```bash
+adobackup.exe pullrequests-backup -p "ProjectA" -r "Repo1,Repo2" -v
+```
+
+**Backup completed PRs from specific project:**
+```bash
+adobackup.exe pullrequests-backup -p "ProjectA" --status Completed -v
+```
+
+---
+
+### serviceconnections-backup
+
+Backup service connections (connection metadata only, credentials excluded).
+
+**Syntax:**
+```bash
+adobackup.exe serviceconnections-backup [options]
+```
+
+**Options:**
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--projects` | `-p` | string | all | Comma-separated list of project names |
+
+**Examples:**
+
+**Backup all service connections:**
+```bash
+adobackup.exe serviceconnections-backup -v
+```
+
+**Backup specific projects:**
+```bash
+adobackup.exe serviceconnections-backup -p "ProjectA,ProjectB" -v
+```
+
+---
+
 ## Restore Commands
 
 ### restore-all
@@ -388,11 +488,14 @@ adobackup.exe restore-all [options]
 | `--include-workitems` | | flag | false | Include work items in restore |
 | `--include-variables` | | flag | false | Include pipeline variables in restore |
 | `--include-queries` | | flag | false | Include queries in restore |
+| `--include-serviceconnections` | | flag | false | Include service connections in restore |
+| `--include-pullrequests` | | flag | false | Include pull requests in restore |
 | `--warnings-as-errors` | | flag | false | Treat warnings (partial failures) as errors - task fails on partial failures |
 | `--ignore-warnings` | | flag | false | Ignore warnings (partial failures) - task succeeds even with partial failures |
 | `--repositories` | `-r` | string | all | Comma-separated list of repository names |
 | `--definitions` | | string | all | Comma-separated list of build definition IDs |
 | `--workitem-ids` | `-i` | string | all | Comma-separated list of work item IDs |
+| `--pullrequest-ids` | | string | all | Comma-separated list of pull request IDs |
 | `--bypass-rules` | | bool | true | Bypass work item validation rules |
 | `--queries-folder-path` | `-f` | string | all | Specific query folder path |
 
@@ -657,7 +760,7 @@ adobackup.exe queries-restore [options]
 **Options:**
 
 | Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
+|--------|-------|------|---------|
 | `--projects` | `-p` | string | all | Comma-separated list of source project names |
 | `--backup-date` | `-d` | string | latest | Backup date (YYYYMMDD) |
 | `--queries-folder-path` | `-f` | string | all | Specific query folder path |
@@ -689,6 +792,97 @@ adobackup.exe queries-restore ^
 adobackup.exe queries-restore ^
   -p "ProjectA" ^
   -f "Epics Queries/All Active Epics" ^
+  -v
+```
+
+---
+
+### pullrequests-restore
+
+Restore pull requests only.
+
+**Syntax:**
+```bash
+adobackup.exe pullrequests-restore [options]
+```
+
+**Options:**
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--projects` | `-p` | string | all | Comma-separated list of source project names |
+| `--backup-date` | `-d` | string | latest | Backup date (YYYYMMDD) |
+| `--repositories` | `-r` | string | all | Comma-separated list of repository names |
+| `--pullrequest-ids` | | string | all | Comma-separated list of PR IDs to restore |
+| `--target-org` | | string | source | Target organization URL |
+| `--target-pat` | | string | source | Target PAT token |
+| `--target-project` | `-t` | string | source | Target project name |
+| `--dry-run` | | flag | false | Preview only |
+
+**Examples:**
+
+**Restore all pull requests:**
+```bash
+adobackup.exe pullrequests-restore -v
+```
+
+**Restore specific repositories:**
+```bash
+adobackup.exe pullrequests-restore -p "ProjectA" -r "Repo1,Repo2" -v
+```
+
+**Restore to different organization:**
+```bash
+adobackup.exe pullrequests-restore ^
+  --target-org "https://dev.azure.com/neworg" ^
+  --target-pat "new-pat" ^
+  -v
+```
+
+**Dry run (preview only):**
+```bash
+adobackup.exe pullrequests-restore --dry-run -v
+```
+
+**Restore specific pull requests:**
+```bash
+adobackup.exe pullrequests-restore --pullrequest-ids "1,2,5,10" -v
+```
+
+---
+
+### serviceconnections-restore
+
+Restore service connections only.
+
+**Syntax:**
+```bash
+adobackup.exe serviceconnections-restore [options]
+```
+
+**Options:**
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--projects` | `-p` | string | all | Comma-separated list of source project names |
+| `--backup-date` | `-d` | string | latest | Backup date (YYYYMMDD) |
+| `--target-org` | | string | source | Target organization URL |
+| `--target-pat` | | string | source | Target PAT token |
+| `--target-project` | `-t` | string | source | Target project name |
+| `--dry-run` | | flag | false | Preview only |
+
+**Examples:**
+
+**Restore all service connections:**
+```bash
+adobackup.exe serviceconnections-restore -v
+```
+
+**Restore to different project:**
+```bash
+adobackup.exe serviceconnections-restore ^
+  -p "SourceProject" ^
+  --target-project "TargetProject" ^
   -v
 ```
 
@@ -824,6 +1018,52 @@ adobackup.exe backup-all ^
   --max-builds 50 ^
   --days 30 ^
   --min-id 10000 ^
+  -v
+```
+
+### Pattern 5: Incremental Pull Requests Backup
+
+**Initial full backup of pull requests:**
+```bash
+adobackup.exe backup-all --include-pullrequests -v
+```
+
+**Daily incremental backup (only new/modified PRs):**
+```bash
+adobackup.exe backup-all --include-pullrequests -i -v
+```
+
+**Incremental with aggressive refresh (every 12 hours):**
+```bash
+adobackup.exe backup-all ^
+  --include-pullrequests ^
+  -i ^
+  --active-pr-refresh-hours 12 ^
+  -v
+```
+
+**Backup only active PRs with incremental mode:**
+```bash
+adobackup.exe pullrequests-backup ^
+  --status Active ^
+  -i ^
+  -v
+```
+
+### Pattern 6: Pull Requests Migration Workflow
+
+**Backup from source:**
+```bash
+adobackup.exe pullrequests-backup -p "SourceProject" -r "Repo1" -v
+```
+
+**Restore to different organization:**
+```bash
+adobackup.exe pullrequests-restore ^
+  -p "SourceProject" ^
+  -r "Repo1" ^
+  --target-org "https://dev.azure.com/neworg" ^
+  --target-pat "new-pat-token" ^
   -v
 ```
 

@@ -185,7 +185,7 @@ The utility consists of several components:
 | Resource Type | Backup | Restore | Incremental | Notes |
 |--------------|--------|---------|-------------|-------|
 | Git Repositories | ✅ | ✅ | ✅ | Full clone with all branches |
-| Pull Requests | ✅ | ✅ | | PR metadata, comments, reviews, status |
+| Pull Requests | ✅ | ✅ | ✅ | PR metadata, comments, reviews, status with intelligent change detection |
 | Build Definitions | ✅ | ✅  |  | Includes configuration |
 | Build History | ✅ |   |   | Up to 100 builds per definition - backup reference |
 | Service Connections | ✅ | ✅ | | Connection metadata (credentials excluded) |
