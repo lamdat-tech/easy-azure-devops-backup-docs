@@ -45,6 +45,10 @@ For manual operations, scripting, or environments without pipeline access, the C
 - Parallel processing for improved performance
 - Comprehensive logging and error handling
 - Metadata tracking for backup history
+- **Warning behavior control** - Choose how to handle partial failures:
+  - **Warning** (default) - Task succeeds with issues, partial failures shown as warnings
+  - **Error** - Treat warnings as errors, task fails on any partial failures
+  - **Ignore** - Ignore warnings completely, task succeeds even with partial failures
 
 🏢 **Enterprise Ready**
 - Support for large-scale operations

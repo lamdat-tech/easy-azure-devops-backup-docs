@@ -370,28 +370,123 @@ adobackup.exe backup-all \
 # Storage savings: 50-80% depending on repo sizes
 ```
 
+---
 
+### Scenario 8: Handling Partial Failures with Warning Behavior
+
+**Context:** Large organization with thousands of work items needs flexible error handling during backups.
+
+**Requirements:**
+- Critical backups must fail if any resource fails
+- Development backups can tolerate some failures
+- Archive backups should complete even with issues
+
+**Solution:**
+
+**Critical Production Backup - Fail on any issue:**
+```yaml
+# Production backup with strict error handling
+name: ProductionBackup
+schedules:
+  - cron: "0 2 * * *"
+steps:
+  - task: AzureDevOpsBackupTask@0
+    inputs:
+      Projects: 'ProductionProject'
+      BackupMode: 'Incremental'
+      WarningBehavior: 'Error'  # Fail task on any partial failures
+      Verbose: true
+```
+
+```bash
+# CLI equivalent
+adobackup.exe backup-all \
+  -p "ProductionProject" \
+  -i \
+  --warnings-as-errors \
+  -v
+```
+
+**Development Backup - Show warnings but continue:**
+```yaml
+# Development backup with default warning behavior
+name: DevBackup
+steps:
+  - task: AzureDevOpsBackupTask@0
+    inputs:
+      Projects: 'DevProject'
+      BackupMode: 'Incremental'
+      WarningBehavior: 'Warning'  # Default: show issues but succeed
+      Verbose: true
+```
+
+```bash
+# CLI equivalent (default behavior)
+adobackup.exe backup-all \
+  -p "DevProject" \
+  -i \
+  -v
+```
+
+**Archive Backup - Ignore failures:**
+```yaml
+# Archive backup that must complete regardless
+name: ArchiveBackup
+steps:
+  - task: AzureDevOpsBackupTask@0
+    inputs:
+      Projects: 'OldProjects'
+      BackupMode: 'Full'
+      WarningBehavior: 'Ignore'  # Complete even with failures
+      Verbose: true
+```
+
+```bash
+# CLI equivalent
+adobackup.exe backup-all \
+  -p "OldProjects" \
+  --ignore-warnings \
+  -v
+```
+
+**Expected Outcomes:**
+
+| Scenario | 10 items fail out of 1000 | Task Result |
+|----------|---------------------------|-------------|
+| Production (`--warnings-as-errors`) | Task fails, pipeline stops | ? Failed |
+| Development (default) | Task succeeds with issues | ?? Succeeded with Issues |
+| Archive (`--ignore-warnings`) | Task succeeds | ? Succeeded |
+
+**When to use each option:**
+
+- **`WarningBehavior: Error` / `--warnings-as-errors`**
+  - Critical production systems
+  - Compliance-required backups
+  - Zero-tolerance for data loss
+  - Gating deployments on successful backups
+
+- **`WarningBehavior: Warning` (Default)**
+  - Standard development workflows
+  - Balance between visibility and flexibility
+  - Want to know about issues without blocking
+  - Most common use case
+
+- **`WarningBehavior: Ignore` / `--ignore-warnings`**
+  - Archive/historical data where some loss is acceptable
+  - Best-effort backups of deprecated projects
+  - Large-scale migrations where some failures expected
+  - Use with caution - may hide real issues
 
 ---
 
 ## Summary Matrix
 
-| Use Case | Frequency | Backup Mode | Resources | Complexity |
-|----------|-----------|-------------|-----------|------------|
-| Disaster Recovery | Daily | Incremental | All | Medium |
-| Compliance Archival | Monthly | Full | All | Medium |
-| Continuous Backup | Every 4h | Incremental | Tiered | High |
-| Selective Backup | Daily | Incremental | Critical only | Medium |
+| Use Case | Frequency | Backup Mode | Resources | Complexity | Warning Behavior |
+|----------|-----------|-------------|-----------|------------|------------------|
+| Disaster Recovery | Daily | Incremental | All | Medium | Warning (default) |
+| Compliance Archival | Monthly | Full | All | Medium | Error (strict) |
+| Continuous Backup | Every 4h | Incremental | Tiered | High | Warning (default) |
+| Selective Backup | Daily | Incremental | Critical only | Medium | Warning (default) |
+| Partial Failure Handling | Varies | Varies | Varies | Low | Error/Warning/Ignore |
 
 ---
-
-## Additional Resources
-
-- [Getting Started Guide](./getting-started.md)
-- [Command Reference](./command-reference.md)
-- [Best Practices](./best-practices.md)
-- [Pipeline Integration](./pipeline-integration.md)
-
----
-
-**Last Updated:** January 2025

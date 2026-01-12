@@ -14,6 +14,15 @@ parameters:
       - 'Full'
       - 'Incremental'
   
+  - name: 'warningBehavior'
+    displayName: 'Warning Behavior'
+    type: string
+    default: 'Warning'
+    values:
+      - 'Warning'
+      - 'Error'
+      - 'Ignore'
+  
   - name: 'backupAll'
     displayName: 'Backup All Components'
     type: boolean
@@ -124,6 +133,7 @@ variables:
 jobs:
 - job: BackupJob
   displayName: 'Backup Azure DevOps'
+  timeoutInMinutes: 720   # 12 hours
 
   steps:  
     - checkout: Self
@@ -140,6 +150,7 @@ jobs:
         Projects: '${{ parameters.projectsToBackup }}'
         Verbose: true
         BackupMode: '${{ parameters.backupMode }}'
+        WarningBehavior: '${{ parameters.warningBehavior }}'
         
         # Component selection - use include-based flags (v0.6.0+)
         BackupAll: ${{ parameters.backupAll }}

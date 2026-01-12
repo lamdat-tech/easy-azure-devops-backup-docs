@@ -64,6 +64,8 @@ adobackup.exe backup-all [options]
 | `--include-workitems` | | flag | false | Include work items in backup |
 | `--include-variables` | | flag | false | Include pipeline variables in backup |
 | `--include-queries` | | flag | false | Include queries in backup |
+| `--warnings-as-errors` | | flag | false | Treat warnings (partial failures) as errors - task fails on partial failures |
+| `--ignore-warnings` | | flag | false | Ignore warnings (partial failures) - task succeeds even with partial failures |
 | `--repositories` | `-r` | string | all | Comma-separated list of repository names (for Git) |
 | `--definitions` | `-d` | string | all | Comma-separated list of build definition names |
 | `--max-builds` | | int | 100 | Maximum builds per definition (max: 100) |
@@ -130,6 +132,21 @@ adobackup.exe backup-all ^
 **Incremental backup (continuous backup strategy):**
 ```bash
 adobackup.exe backup-all -i --MaxParallelism 8 -v
+```
+
+**Treat warnings as errors (fail on partial failures):**
+```bash
+adobackup.exe backup-all --warnings-as-errors -v
+```
+
+**Ignore warnings (succeed even with partial failures):**
+```bash
+adobackup.exe backup-all --ignore-warnings -v
+```
+
+**Incremental backup with warnings as errors:**
+```bash
+adobackup.exe backup-all -i --warnings-as-errors -v
 ```
 
 ---
@@ -371,6 +388,8 @@ adobackup.exe restore-all [options]
 | `--include-workitems` | | flag | false | Include work items in restore |
 | `--include-variables` | | flag | false | Include pipeline variables in restore |
 | `--include-queries` | | flag | false | Include queries in restore |
+| `--warnings-as-errors` | | flag | false | Treat warnings (partial failures) as errors - task fails on partial failures |
+| `--ignore-warnings` | | flag | false | Ignore warnings (partial failures) - task succeeds even with partial failures |
 | `--repositories` | `-r` | string | all | Comma-separated list of repository names |
 | `--definitions` | | string | all | Comma-separated list of build definition IDs |
 | `--workitem-ids` | `-i` | string | all | Comma-separated list of work item IDs |
@@ -445,6 +464,16 @@ adobackup.exe restore-all ^
   -v
 ```
 
+**Restore with warnings as errors:**
+```bash
+adobackup.exe restore-all --warnings-as-errors -v
+```
+
+**Restore with warnings ignored:**
+```bash
+adobackup.exe restore-all --ignore-warnings -v
+```
+
 ---
 
 ### git-restore
@@ -502,7 +531,7 @@ adobackup.exe build-restore [options]
 **Options:**
 
 | Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
+|--------|-------|------|---------|
 | `--projects` | `-p` | string | all | Comma-separated list of source project names |
 | `--backup-date` | `-d` | string | latest | Backup date (YYYYMMDD) |
 | `--definitions` | | string | all | Comma-separated list of build definition IDs |
@@ -545,7 +574,7 @@ adobackup.exe workitems-restore [options]
 **Options:**
 
 | Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
+|--------|-------|------|---------|
 | `--projects` | `-p` | string | all | Comma-separated list of source project names |
 | `--backup-date` | `-d` | string | latest | Backup date (YYYYMMDD) |
 | `--workitem-ids` | `-i` | string | all | Comma-separated list of work item IDs |
@@ -802,13 +831,29 @@ adobackup.exe backup-all ^
 
 ## Exit Codes
 
-| Code | Description |
-|------|-------------|
-| 0 | Success |
-| 1 | Partial failure (some resources failed) |
-| 2 | Complete failure |
-| 3 | Invalid arguments |
-| 4 | License validation failed |
+The utility uses different exit codes to indicate the result of operations. The `--warnings-as-errors` and `--ignore-warnings` flags affect how exit codes are interpreted:
+
+| Code | Description | With `--warnings-as-errors` | With `--ignore-warnings` |
+|------|-------------|----------------------------|-------------------------|
+| 0 | Success - All operations completed without issues | Same | Same |
+| 1 | Critical failure - Unable to execute command | Same | Same |
+| 2 | Partial failure - Some resources failed | Treated as failure (exit 2) | Treated as success (exit 0) |
+| 3 | Fatal error - Unexpected error occurred | Same | Same |
+| 255 | Invalid arguments or configuration | Same | Same |
+
+**Warning Behavior Details:**
+
+- **Default behavior:** Exit code 2 indicates partial failures (some items succeeded, some failed). In Azure Pipelines, this is shown as "Succeeded with issues".
+  
+- **With `--warnings-as-errors`:** Exit code 2 is treated as a failure, causing the task/pipeline to fail. Use this for strict quality control where any failure is unacceptable.
+  
+- **With `--ignore-warnings`:** Exit code 2 is converted to exit code 0 (success). Use this when partial failures are acceptable for your workflow.
+
+**Example scenarios:**
+- Backing up 100 work items where 2 fail: Exit code 2 (partial failure)
+- With `--warnings-as-errors`: Pipeline fails
+- With `--ignore-warnings`: Pipeline succeeds
+- Default: Pipeline shows "Succeeded with issues"
 
 ---
 
