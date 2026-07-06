@@ -5,23 +5,19 @@ A comprehensive solution for backing up and restoring Azure DevOps resources acr
 ## Overview
 
 The Azure DevOps Backup & Restore Utility enables you to:
-- **Backup** Azure DevOps resources including Git repositories, pull requests, build definitions, service connections, work items, pipeline variables, and queries
+- **Backup** Azure DevOps resources including Git repositories, pull requests, build definitions, release definitions, service connections, work items, pipeline variables, and queries
 - **Restore** resources to the same or different organizations and projects
 - **Migrate** projects and resources between Azure DevOps organizations
 - **Clone** projects within the same organization
 - **Incremental backups** to capture only new or changed data since the last backup
 
-### Primary Workflow: Azure Pipeline Tasks
+### Azure Pipeline Tasks
 
-The **recommended approach** is to use the Azure DevOps Pipeline Tasks for automated backup and restore operations:
+Use the Azure DevOps Pipeline Tasks for automated backup and restore operations:
 - **AzureDevOpsBackupTask** - For backup operations
 - **AzureDevOpsRestoreTask** - For restore operations
 
 These tasks integrate seamlessly into your CI/CD pipelines, providing scheduled automated backups and controlled restore operations.
-
-### Alternative: Command-Line Interface
-
-For manual operations, scripting, or environments without pipeline access, the CLI utility (`adobackup.exe`) provides full functionality through command-line interface. See [Command Reference](./command-reference.md) for complete CLI documentation.
 
 ## Key Features
 
@@ -29,10 +25,18 @@ For manual operations, scripting, or environments without pipeline access, the C
 - Git repositories (full clone with all branches and history)
 - Pull requests (metadata, comments, reviews, status)
 - Build definitions and build history
+- Release definitions (complete release pipeline configurations)
 - Service connections (metadata, credentials excluded)
+- Task groups (definitions and metadata)
+- Boards (board configurations, columns, rows, card styles)
+- Dashboards (dashboard widgets and layouts)
+- Wikis (wiki pages with full content and hierarchy)
 - Work items with full history and attachments
 - Pipeline variables (secrets excluded)
 - Shared queries and query folders
+- Areas & Iterations (classification nodes, area paths and iteration paths)
+- Test plans, test suites, test cases, and test run history
+- Pipeline environments (definitions, resources, approvals, and checks)
 
 🔄 **Flexible Restore Options**
 - Restore to same or different organization
@@ -60,12 +64,11 @@ For manual operations, scripting, or environments without pipeline access, the C
 ### Prerequisites
 
 - Azure DevOps organization and project
+- Azure Pipelines enabled in your project
 - Valid Azure DevOps Personal Access Token (PAT) with appropriate permissions
-- License key (for production use)
-- For pipeline tasks: Azure Pipelines enabled in your project
-- For CLI: .NET 9 Runtime installed
+- License key — the license is issued per Azure DevOps organization; a **trial license** is available at [easyadobackup.com](https://easyadobackup.com/)
 
-### Option 1: Using Pipeline Tasks (Recommended)
+### Using Pipeline Tasks
 
 **1. Install the Extension**
 
@@ -74,9 +77,9 @@ Install the **Azure DevOps Backup & Restore** extension from the Azure DevOps Ma
 **2. Create a Variable Group**
 
 Create a variable group named **"ADO Backup Restore"** with:
-- `Backup.LicenseKey` (secret)
-- `Backup.AdoPat.RO` (secret, read-only PAT)
-- `Backup.AdoPat.RW` (secret, read-write PAT)
+- `Backup.LicenseKey` (secret — your license key, issued per organization)
+- `Backup.AdoPat.RO` (secret — read-only PAT for backups)
+- `Backup.AdoPat.RW` (secret — read-write PAT for restores)
 - `Backup.Root` (backup directory path)
 
 **3. Create a Backup Pipeline**
@@ -105,7 +108,7 @@ jobs:
     - task: AzureDevOpsBackupTask@0
       displayName: 'Perform Incremental Backup'
       env:
-        ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
+        ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)  # Pass secret directly as environment variable
       inputs:
         Pat: '$(Backup.AdoPat.RO)'
         BackupRoot: '$(Backup.Root)'
@@ -115,37 +118,15 @@ jobs:
         BackupAll: true
 ```
 
-See [Pipeline Integration Guide](./pipeline-integration.md) for complete setup instructions.
-
-### Option 2: Using CLI
-
-**1. Install**
-
-Download and extract the latest release, then activate your license:
-```bash
-adobackup.exe license-activate -k "your-license-key"
-```
-
-**2. Backup**
-```bash
-adobackup.exe backup-all --OrganizationUrl "https://dev.azure.com/yourorg" --Pat "your-pat-token" --BackupRoot "C:\Backups" -i -v
-```
-
-**3. Restore**
-```bash
-adobackup.exe restore-all --OrganizationUrl "https://dev.azure.com/yourorg" --Pat "your-pat-token" --BackupRoot "C:\Backups" -v
-```
-
-See [Command Reference](./command-reference.md) for all CLI commands and options.
+See [Getting Started Guide](./getting-started.md) for step-by-step setup, or the [Pipeline Integration Guide](./pipeline-integration.md) for complete examples.
 
 ## Documentation
 
 ### Getting Started
-- **[Pipeline Integration Guide](./pipeline-integration.md)** - **Start here!** Setup Azure Pipeline tasks (recommended)
-- **[Getting Started with CLI](./getting-started.md)** - CLI installation and basic usage
+- **[Getting Started Guide](./getting-started.md)** - **Start here!** Step-by-step setup for pipeline tasks
+- **[Pipeline Integration Guide](./pipeline-integration.md)** - Complete pipeline examples and advanced configuration
 
 ### Reference
-- **[Command Reference](./command-reference.md)** - Complete CLI command documentation
 - **[Best Practices](./best-practices.md)** - Recommended usage patterns
 - **[Use Cases](./use-cases.md)** - Common scenarios and examples
 
@@ -169,12 +150,11 @@ Use incremental mode in automated pipelines for continuous data protection.
 
 ## Architecture
 
-The utility consists of several components:
+The solution consists of several components:
 
 - **Pipeline Tasks** - Azure DevOps pipeline task extensions for automated operations
   - **AzureDevOpsBackupTask** - Backup task integration
   - **AzureDevOpsRestoreTask** - Restore task integration
-- **CLI** - Command-line interface (`adobackup.exe`) for manual operations
 - **Core Library** - Business logic and Azure DevOps integration
 - **Services** - Backup/restore services for each resource type
 - **Azure DevOps Client** - API wrapper with rate limiting and retry logic
@@ -188,10 +168,18 @@ The utility consists of several components:
 | Pull Requests | ✅ | ✅ | ✅ | PR metadata, comments, reviews, status with intelligent change detection |
 | Build Definitions | ✅ | ✅  |  | Includes configuration |
 | Build History | ✅ |   |   | Up to 100 builds per definition - backup reference |
+| Release Definitions | ✅ | ✅ | | Complete release pipeline configurations (secret variables excluded) |
 | Service Connections | ✅ | ✅ | | Connection metadata (credentials excluded) |
-| Work Items | ✅ | ✅ | ✅ | All fields and attachments |
+| Task Groups | ✅ | ✅ | | Task group definitions and metadata |
+| Boards | ✅ | ✅ | | Board configurations, columns, rows |
+| Dashboards | ✅ | ✅ | | Dashboard widgets and layouts |
+| Wikis | ✅ | ✅ | | Wiki pages with full content and hierarchy |
+| Work Items | ✅ | ✅ | ✅ | All fields, attachments, and revision history (`--max-revisions` to limit stored revisions) |
 | Pipeline Variables | ✅ | ✅ |  | Secrets excluded |
 | Queries | ✅ | ✅ | | Shared queries and folders |
+| Areas & Iterations | ✅ | ✅ | | Classification nodes (area paths and iteration paths); additive restore (never deletes); selective restore (areas-only or iterations-only); cross-project and cross-org supported |
+| Test Plans | ✅ | ✅ | | Test plans, test suites (static, requirement-based, query-based), test case associations, and test run history (configurable days, default: 90); test runs optional during restore; cross-project restore supported |
+| Pipeline Environments | ✅ | ✅ | | Environment definitions, resource registrations, approval configurations, and check configurations; create-or-update restore; optional skip of resources/approvals/checks |
 
 ## Permissions Required
 
@@ -200,36 +188,50 @@ Your Azure DevOps PAT token needs the following permissions:
 **For Backup:**
 - Code (Read)
 - Build (Read)
+- Release (Read)
 - Work Items (Read)
 - Variable Groups (Read)
 - Service Connections (Read)
+- Task Groups (Read)
+- Environments (Read)
+- Wiki (Read)
+- Analytics (Read) - for Boards and Dashboards
 - Project and Team (Read)
 
 **For Restore:**
 - Code (Read, Write)
 - Build (Read, Write)
+- Release (Read, Write, Execute)
 - Work Items (Read, Write)
 - Variable Groups (Read, Write)
 - Service Connections (Read, Write)
+- Task Groups (Read, Write)
+- Environments (Read, Write, Manage)
+- Wiki (Read, Write)
+- Analytics (Read) - for Boards and Dashboards
 - Project and Team (Read, Write)
 
 ## System Requirements
 
-- **Operating System:** Windows 10+, Windows Server 2016+, Linux, macOS
-- **.NET Runtime:** .NET 9.0 or later
+- **Azure DevOps:** Organization with Azure Pipelines enabled
+- **Build Agent:** Self-hosted agent recommended for large backups (sufficient disk space and network access to Azure DevOps)
 - **Disk Space:** Varies based on repository and backup size
 - **Memory:** Minimum 4GB RAM (8GB+ recommended for large organizations)
-- **Network:** Stable internet connection to Azure DevOps
 
 ## License
 
-This software requires a valid license key for production use. Contact Lamdat for licensing information.
+The license is issued per **Azure DevOps organization**. A **trial license** is available — visit [easyadobackup.com](https://easyadobackup.com/) to request one.
+
+After receiving your license key, store it as a secret variable (`Backup.LicenseKey`) and pass it as an environment variable to each backup and restore task:
+
+```yaml
+env:
+  ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)  # Pass secret directly as environment variable
+```
 
 ## Support
 
-For support, bug reports, or feature requests:
-- Email: support@lamdat.com
-- Documentation: [docs/](./docs/)
+For support, bug reports, or feature requests, visit [easyadobackup.com](https://easyadobackup.com/).
 
  ---
 

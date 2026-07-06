@@ -51,11 +51,17 @@ Example: Build definitions reference Git repositories, so repositories must be r
    ├─ Depends on: Service Connections (for deployment/resource connections)
    └─ Depends on: Variable Groups (optional, for pipeline variables)
 
-6. Work Items
+6. Areas & Iterations
+   ├─ No resource dependencies
+       (Must be restored before Work Items and Shared Queries so that
+        area/iteration path fields on work items resolve correctly)
+
+7. Work Items
+   ├─ Depends on: Areas & Iterations (REQUIRED for cross-project/cross-org restores; recommended for same-project)
    ├─ Depends on: Git Repositories (optional, for commit links)
    └─ Depends on: Build Definitions (optional, for build links)
 
-7. Shared Queries
+8. Shared Queries
    ├─ Depends on: Work Items (queries search for work items)
    ├─ Depends on: Areas (for area path filters)
    └─ Depends on: Iterations (for iteration path filters)
@@ -122,11 +128,15 @@ The restore order is **critical** because creating dependent resources before th
 5. ✓ Build Definitions FIFTH
    └─ Now can reference existing Git repos, service connections, and variables
 
-6. ✓ Work Items SIXTH
-   └─ Can link to commits (Git) and builds
+6. ✓ Areas & Iterations SIXTH ⚠️ **Required before Work Items**
+   └─ Classification nodes (area paths, iteration paths) must exist before work items
+      reference them — especially important for cross-project and cross-organization restores
 
-7. ✓ Shared Queries LAST
-   └─ Queries search for work items (must exist first)
+7. ✓ Work Items SEVENTH
+   └─ Can link to commits (Git) and builds; area/iteration paths must already exist
+
+8. ✓ Shared Queries LAST
+   └─ Queries search for work items (must exist first); area/iteration filters must already exist
 ```
 
 ### Restore Command Execution Order
@@ -140,8 +150,9 @@ When you run `adobackup.exe restore-all`, resources are restored in this order:
 3. Service Connections   (RestoreServiceConnectionsAsync)
 4. Pipeline Variables    (RestorePipelineVariablesAsync)
 5. Build Definitions     (RestoreBuildDefinitionsAsync)
-6. Work Items           (RestoreWorkItemsAsync)
-7. Shared Queries        (RestoreQueriesAsync)
+6. Areas & Iterations   (RestoreAreasAndIterationsAsync)  ← before work items
+7. Work Items           (RestoreWorkItemsAsync)
+8. Shared Queries        (RestoreQueriesAsync)
 ```
 
 **The utility enforces this order automatically** - you cannot change it when using `restore-all`.
@@ -162,8 +173,11 @@ adobackup.exe restore-all --include-git --include-pullrequests
 # Restore Git + Service Connections + Variables (no dependency between them)
 adobackup.exe restore-all --include-git --include-serviceconnections --include-variables
 
+# Restore Areas & Iterations + Work Items (areas must come first)
+adobackup.exe restore-all --include-areas --include-workitems
+
 # Restore everything except queries (queries depend on work items)
-adobackup.exe restore-all --include-git --include-pullrequests --include-serviceconnections --include-builds --include-workitems --include-variables
+adobackup.exe restore-all --include-git --include-pullrequests --include-serviceconnections --include-variables --include-builds --include-areas --include-workitems
 ```
 
 #### ❌ UNSAFE Selective Restores
@@ -176,6 +190,10 @@ adobackup.exe restore-all --include-builds
 # BAD: Restore queries without work items
 # Queries will be created but won't find any work items to query
 adobackup.exe restore-all --include-queries
+
+# BAD: Restore work items without areas/iterations (cross-project or cross-org)
+# Area/iteration path fields fall back to project root; paths are not preserved
+adobackup.exe restore-all --include-workitems --target-project "TargetProject"
 ```
 
 ## Resource Dependencies Explained
@@ -314,36 +332,72 @@ For cross-project scenarios:
 1. Restore all Git repositories first (all projects)
 2. Then restore build definitions
 
-### 6. Work Items
+### 6. Areas & Iterations
+
+**Dependencies:** None
+
+**Depended On By:**
+- Work Items (`System.AreaPath` and `System.IterationPath` fields reference classification nodes)
+- Shared Queries (WIQL filters by area path and iteration path)
+
+**Why Restore Before Work Items:**
+- Work item fields `System.AreaPath` and `System.IterationPath` must resolve to existing nodes
+- For cross-project and cross-organization restores, paths are rewritten to the target project; those target nodes must already exist or the restore will fall back to the root path or emit warnings
+- Shared queries that filter by area/iteration return no results until the nodes exist
+
+**Important Behaviors:**
+- Restore is **additive only** — existing nodes are never deleted
+- **Idempotent** — safe to run multiple times without creating duplicates
+- `--areas-only` restores only area paths; `--iterations-only` restores only iteration paths
+- Cross-project and cross-organization restore is fully supported
+
+**Example Commands:**
+```bash
+# Restore both areas and iterations (recommended before work items)
+adobackup.exe areas-restore -p "SourceProject" --target-project "TargetProject" -v
+
+# Or use restore-all with selective include
+adobackup.exe restore-all --include-areas --include-workitems -p "SourceProject" -v
+```
+
+---
+
+### 7. Work Items
 
 **Dependencies:**
-- Git Repositories (optional, for commit links)
-- Build Definitions (optional, for build links)
+- **Areas & Iterations** (⚠️ **Required** for cross-project/cross-org; strongly recommended for same-project so that area/iteration path fields resolve correctly)
+- Git Repositories (optional, for commit and development links)
+- Build Definitions (optional, for build run links)
 
 **Depended On By:**
 - Shared Queries (queries search work items)
 
-**Why Restore After Git/Builds:**
+**Why Restore After Areas/Iterations and Git/Builds:**
+- `System.AreaPath` and `System.IterationPath` fields must resolve to existing classification nodes; without them the restore warns and falls back to the project root
 - Work items can link to Git commits (requires repository to exist)
 - Work items can link to builds (requires build definition to exist)
-- Links are preserved even if dependencies missing (but may be broken)
+- Development links (commits, pull requests, builds) are preserved when possible; fallback hyperlinks are created for closed PRs and build runs that cannot be migrated natively
+
+**Cross-Organization Restore — Two-Phase Process:**
+- **Phase 1** — Creates all work items in the target with new IDs and builds a source-to-target ID mapping persisted to `.metadata/id-mapping.json`. Already-mapped items are skipped on re-runs.
+- **Phase 2** — Relinks all relations (parent-child, related, predecessor-successor) and development links using the persisted mapping. Cross-org work-item URLs are rewritten; commit links are kept as native artifact links where possible; closed PR and build-run links are converted to fallback hyperlinks pointing to the source.
+- **Idempotent re-runs** — The mapping file is written incrementally after each Phase 1 creation, so a partial restore can be safely re-run without creating duplicates.
 
 **Important Behaviors:**
 - Existing work items are **updated** (not skipped)
 - Deleted work items are **recreated with new IDs**
-- No comments added to work item history about restore
-- `--bypass-rules` skips field validation (use for different process templates)
+- No comments are added to work item history about the restore
+- `--bypass-rules` skips field validation (recommended for cross-process-template restores)
 
-**Cross-Project Limitations:**
-- Work items can **only** be restored to the same project
-- Use `--target-project` to clone to different project (creates new IDs)
+**Cross-Project/Cross-Org Requirement:**
+- Specify exactly one source project with `-p` when using `--target-project` or `--target-org`
+- Restore Areas & Iterations **first** so classification paths exist in the target before work items are created
 
-### 7. Shared Queries
+### 8. Shared Queries
 
 **Dependencies:**
 - Work Items (queries search for work items)
-- Areas (queries filter by area paths)
-- Iterations (queries filter by iteration paths)
+- Areas & Iterations (queries filter by area paths and iteration paths — nodes must exist)
 
 **Depended On By:** None
 
@@ -491,35 +545,78 @@ adobackup.exe workitems-restore -p "SourceProject" --target-project "TargetProje
 # 3. Update "Area Path" and "Iteration Path" to reference TargetProject
 ```
 
-### Issue 4: Work Item Links Are Broken After Restore
+### Issue 4: Work Item Area/Iteration Path Warnings or Falls Back to Root
+
+**Symptom:** Work items restore successfully but `System.AreaPath` or `System.IterationPath` values are replaced with the project root or warnings appear about missing classification nodes.
+
+**Cause:** Area or iteration nodes were not present in the target project when work items were restored.
+
+**Solution:**
+```bash
+# Step 1: Restore areas and iterations first
+adobackup.exe areas-restore -p "SourceProject" --target-project "TargetProject" -v
+
+# Step 2: Then restore work items
+adobackup.exe workitems-restore -p "SourceProject" --target-project "TargetProject" -v
+```
+
+**For cross-organization restore:**
+```bash
+# Step 1: Restore areas and iterations to the target organization
+adobackup.exe areas-restore \
+  -p "SourceProject" \
+  --target-org "https://dev.azure.com/targetorg" \
+  --target-pat "$(Target.AdoPat.RW)" \
+  --target-project "TargetProject" \
+  -v
+
+# Step 2: Restore work items
+adobackup.exe workitems-restore \
+  -p "SourceProject" \
+  --target-org "https://dev.azure.com/targetorg" \
+  --target-pat "$(Target.AdoPat.RW)" \
+  --target-project "TargetProject" \
+  -v
+```
+
+---
+
+### Issue 5: Work Item Links Are Broken After Restore
 
 **Symptom:** Work items restored successfully but links to commits/builds are broken.
 
 **Causes:**
 - Git repositories or builds not restored yet
 - Repository/build IDs changed during restore
-- Cross-project restore (work items get new IDs)
+- Cross-project or cross-org restore (work items get new IDs)
 
 **Solution:**
 
 **For Same-Project Restore:**
 ```bash
 # Restore in correct order
-adobackup.exe restore-all -v  # Automatic correct order
+adobackup.exe restore-all -v  # Automatic correct order includes areas before work items
 
 # Links should be preserved with original IDs
 ```
 
-**For Cross-Project Restore:**
+**For Cross-Organization Restore:**
+- **Git commit links** are preserved as native artifact links where the target repository exists
+- **Closed pull request links** are converted to fallback hyperlinks pointing to the source PR — the source PR URL is preserved so reviewers can still navigate to the original discussion
+- **Build run links** are converted to fallback hyperlinks pointing to the source build run — useful for audit trail
+- **Work item relations** (parent-child, related, predecessor-successor) are automatically relinked using the source-to-target ID mapping persisted in `.metadata/id-mapping.json`
+
 ```bash
-# Links will be broken because work items get new IDs
-# Manual remediation required:
-# 1. Document important links before restore
-# 2. Restore all resources
-# 3. Manually recreate critical links in Azure DevOps
+# Idempotent re-run — already-mapped items are skipped, no duplicates created
+adobackup.exe workitems-restore \
+  -p "SourceProject" \
+  --target-org "https://dev.azure.com/targetorg" \
+  --target-pat "your-target-pat" \
+  --target-project "TargetProject" \
+  -v
 ```
 
-### Issue 5: Cross-Project Build Definition Fails
+### Issue 6: Cross-Project Build Definition Fails
 
 **Error:**
 ```
@@ -550,8 +647,9 @@ Quick reference table for resource dependencies:
 | **Service Connections** | None | Builds (optional) | **3 - THIRD** |
 | **Variable Groups** | None | Builds (optional) | **4 - FOURTH** |
 | **Build Definitions** | Git, Service Connections, Variables | Work Items | **5 - FIFTH** |
-| **Work Items** | Git (optional), Builds (optional) | Queries | **6 - SIXTH** |
-| **Shared Queries** | Work Items, Areas, Iterations | None | **7 - LAST** |
+| **Areas & Iterations** | None | Work Items ⚠️, Queries | **6 - SIXTH** |
+| **Work Items** | Areas & Iterations ⚠️, Git (optional), Builds (optional) | Queries | **7 - SEVENTH** |
+| **Shared Queries** | Work Items, Areas & Iterations | None | **8 - LAST** |
 
 ## Advanced Scenarios
 
@@ -585,7 +683,7 @@ adobackup.exe restore-all \
   -v
 
 # Automatic order:
-# 1. Git → 2. Pull Requests → 3. Service Connections → 4. Variables → 5. Builds → 6. Work Items → 7. Queries
+# 1. Git → 2. Pull Requests → 3. Service Connections → 4. Variables → 5. Builds → 6. Areas & Iterations → 7. Work Items → 8. Queries
 ```
 
 ### Scenario 3: Incremental Restore (Add Resources)
@@ -661,7 +759,7 @@ adobackup.exe queries-restore -p "Project" -v
 ---
 
 **See Also:**
-- [Command Reference](./command-reference.md) - Detailed command documentation
+- [Pipeline Integration Guide](./pipeline-integration.md) - Task configuration and examples
 - [Best Practices](./best-practices.md) - Backup and restore strategies
 - [Troubleshooting Guide](./troubleshooting.md) - Common issues and solutions
 - [Use Cases](./use-cases.md) - Real-world scenarios

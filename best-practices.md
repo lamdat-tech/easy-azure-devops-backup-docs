@@ -28,36 +28,42 @@ Recommendations and patterns for effectively using the Azure DevOps Backup & Res
 - Different geographic location
 - Different infrastructure
 
-**Important:** The `adobackup` utility stores all backups in a single folder location (`BackupRoot`). It does **not** automatically create dated copies or manage retention. You are responsible for:
+**Important:** The backup task stores all backups in a single folder location (`BackupRoot`). It does **not** automatically create dated copies or manage retention. You are responsible for:
 - Copying the `BackupRoot` folder to backup storage (daily, weekly, etc.)
 - Managing backup retention policies
 - Maintaining multiple generations of backups
 
-**Example Implementation:**
-```bash
-# Daily backup with adobackup (updates files in BackupRoot)
-adobackup.exe backup-all -i --BackupRoot "D:\ADOBackups" -v
+**Example — copy to backup storage after each pipeline run:**
+```powershell
+# Copy the entire backup folder to backup storage (add as a pipeline step)
+robocopy "$(Backup.Root)" "E:\BackupStorage\ADOBackups-$(Get-Date -Format 'yyyyMMdd')" /MIR /Z /R:3
 
-# Then copy the entire backup folder to backup storage using your preferred tool
-# Example with robocopy (incremental file-level backup)
-robocopy "D:\ADOBackups" "E:\BackupStorage\ADOBackups-Daily-$(Get-Date -Format 'yyyyMMdd')" /MIR /Z /R:3
-
-# Example with cloud storage
-az storage blob upload-batch --destination adobackups --source "D:\ADOBackups"
+# Or upload to cloud storage
+az storage blob upload-batch --destination adobackups --source "$(Backup.Root)"
 ```
 
 ### 2. Use Incremental Backups
 
-**Full Backup Mode:**
-```bash
-# Backs up all resources regardless of previous backups
-adobackup.exe backup-all --BackupRoot "D:\ADOBackups" -v
+**Full Backup Mode** — set `BackupMode: 'Full'` in the task input:
+```yaml
+- task: AzureDevOpsBackupTask@0
+  env:
+    ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
+  inputs:
+    Pat: '$(Backup.AdoPat.RO)'
+    BackupRoot: '$(Backup.Root)'
+    BackupMode: 'Full'
 ```
 
-**Incremental Backup Mode:**
-```bash
-# Only backs up new/changed resources since last backup
-adobackup.exe backup-all -i --BackupRoot "D:\ADOBackups" -v
+**Incremental Backup Mode** — set `BackupMode: 'Incremental'`:
+```yaml
+- task: AzureDevOpsBackupTask@0
+  env:
+    ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
+  inputs:
+    Pat: '$(Backup.AdoPat.RO)'
+    BackupRoot: '$(Backup.Root)'
+    BackupMode: 'Incremental'
 ```
 
 **Benefits:**
@@ -110,16 +116,9 @@ param(
     [int]$MonthsToKeepMonthly = 12
 )
 
-# Step 1: Run adobackup (updates BackupRoot folder)
-Write-Host "Running Azure DevOps backup..."
-& adobackup.exe backup-all -i --BackupRoot $BackupRoot -v
+# This script runs as a pipeline step AFTER AzureDevOpsBackupTask completes
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Backup failed with exit code $LASTEXITCODE"
-    exit 1
-}
-
-# Step 2: Copy BackupRoot to archive storage with timestamp
+# Step 1: Copy BackupRoot to archive storage with timestamp
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $dayOfWeek = (Get-Date).DayOfWeek
 $dayOfMonth = (Get-Date).Day
@@ -175,7 +174,7 @@ Write-Host "Backup and archival completed successfully"
 
 **Understanding Storage Requirements:**
 
-The `adobackup` utility uses a **single folder** (`BackupRoot`) for all backups. When you run incremental backups, it updates files in place rather than creating new dated folders.
+The backup task uses a **single folder** (`BackupRoot`) for all backups. When you run incremental backups, it updates files in place rather than creating new dated folders.
 
 **Estimate Storage Requirements:**
 
@@ -262,34 +261,28 @@ E:\BackupArchive\                 ← Archive storage (your retention copies)
 
 **Strategy 1: File-Level Incremental (Recommended)**
 ```powershell
-# Run adobackup incrementally (updates BackupRoot)
-adobackup.exe backup-all -i --BackupRoot "D:\ADOBackups" -v
-
+# Add as a pipeline step after AzureDevOpsBackupTask
 # Copy only changed files to archive (file-level incremental)
-robocopy "D:\ADOBackups" "E:\Archive\Daily\$(Get-Date -Format 'yyyyMMdd')" /MIR /Z
+robocopy "$(Backup.Root)" "E:\Archive\Daily\$(Get-Date -Format 'yyyyMMdd')" /MIR /Z
 ```
 ✅ Fast, efficient storage usage
 
 **Strategy 2: Full Copies**
 ```powershell
-# Run adobackup
-adobackup.exe backup-all -i --BackupRoot "D:\ADOBackups" -v
-
+# Add as a pipeline step after AzureDevOpsBackupTask
 # Create complete copy of BackupRoot
-Copy-Item "D:\ADOBackups" -Destination "E:\Archive\$(Get-Date -Format 'yyyyMMdd')" -Recurse
+Copy-Item "$(Backup.Root)" -Destination "E:\Archive\$(Get-Date -Format 'yyyyMMdd')" -Recurse
 ```
 ✅ Simple, independent restore points
 ❌ Higher storage usage
 
 **Strategy 3: Cloud Sync**
 ```bash
-# Run adobackup
-adobackup.exe backup-all -i --BackupRoot "D:\ADOBackups" -v
-
+# Add as a pipeline step after AzureDevOpsBackupTask
 # Sync to Azure Blob Storage with versioning enabled
 az storage blob upload-batch \
-    --destination adobacksups \
-    --source "D:\ADOBackups" \
+    --destination adobackups \
+    --source "$(Backup.Root)" \
     --account-name mystorageaccount
 ```
 ✅ Offsite protection, automatic versioning
@@ -297,9 +290,7 @@ az storage blob upload-batch \
 
 **Strategy 4: Snapshot-Based (ZFS, Btrfs, Storage Spaces)**
 ```powershell
-# Run adobackup
-adobackup.exe backup-all -i --BackupRoot "D:\ADOBackups" -v
-
+# Add as a pipeline step after AzureDevOpsBackupTask
 # Create filesystem snapshot (instant, space-efficient)
 New-VolumeSnapshot -DriveLetter D -SnapshotName "Backup-$(Get-Date -Format 'yyyyMMdd')"
 ```
@@ -308,7 +299,7 @@ New-VolumeSnapshot -DriveLetter D -SnapshotName "Backup-$(Get-Date -Format 'yyyy
 
 ### 5. Backup Organization
 
-**Recommended BackupRoot Structure (created by adobackup):**
+**Recommended BackupRoot Structure (created by the backup task):**
 ```
 D:\ADOBackups\                    ← Your BackupRoot parameter
 ├── ProjectA\
@@ -374,13 +365,16 @@ E:\ADOBackupArchive\
 - Never commit to source control
 - Use separate service accounts for automation
 
-**Example: Using Azure Key Vault**
-```bash
-# Retrieve PAT from Key Vault
-$pat = az keyvault secret show --name "ado-backup-pat" --vault-name "mykeyvault" --query "value" -o tsv
+**Example: Using Azure Key Vault with Pipeline Tasks**
 
-# Run backup with retrieved PAT
-adobackup.exe backup-all --Pat "$pat" --BackupRoot "D:\Backups" -v
+Store secrets in Azure Key Vault and link them to your pipeline variable group via the Azure DevOps Library. Mark them as secret variables, then reference them in the task:
+```yaml
+- task: AzureDevOpsBackupTask@0
+  env:
+    ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
+  inputs:
+    Pat: '$(Backup.AdoPat.RO)'  # Retrieved from linked Key Vault secret
+    BackupRoot: '$(Backup.Root)'
 ```
 
 ### 2. Backup Encryption
@@ -423,34 +417,41 @@ Set-Acl "D:\ADOBackups" $acl
 ### 4. Audit Logging
 
 **Enable Comprehensive Logging:**
-```bash
-# Always use verbose mode for audit trail
-adobackup.exe backup-all -v
 
-# Centralize logs
-adobackup.exe backup-all --BackupRoot "D:\Backups" -v | Tee-Object -FilePath "\\logserver\ado-backups\backup-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
+Set `Verbose: true` in the task inputs and publish logs as pipeline artifacts:
+```yaml
+- task: AzureDevOpsBackupTask@0
+  env:
+    ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
+  inputs:
+    Pat: '$(Backup.AdoPat.RO)'
+    BackupRoot: '$(Backup.Root)'
+    Verbose: true
+
+- task: PublishBuildArtifacts@1
+  displayName: 'Upload Backup Logs'
+  condition: always()
+  inputs:
+    PathtoPublish: '$(Backup.Root)/logs'
+    ArtifactName: 'BackupLogs-$(Build.BuildNumber)'
 ```
 
 ## Performance Optimization
 
 ### 1. Parallelism Tuning
 
-**Default Setting:**
-```bash
-# Default: 4 parallel operations
-adobackup.exe backup-all -v
-```
+Use the `MaxParallelism` task input to control concurrent operations. Default is 4.
 
-**Optimized for Performance:**
-```bash
-# High-performance server: 8-12 parallel
-adobackup.exe backup-all --MaxParallelism 12 -v
-
-# Standard server: 6-8 parallel
-adobackup.exe backup-all --MaxParallelism 8 -v
-
-# Limited resources: 2-4 parallel
-adobackup.exe backup-all --MaxParallelism 2 -v
+```yaml
+- task: AzureDevOpsBackupTask@0
+  env:
+    ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
+  inputs:
+    Pat: '$(Backup.AdoPat.RO)'
+    BackupRoot: '$(Backup.Root)'
+    MaxParallelism: '8'   # High-performance agent: 8-12
+                          # Standard agent: 4-8
+                          # Rate-limited: 1-2
 ```
 
 **Considerations:**
@@ -473,20 +474,40 @@ adobackup.exe backup-all --MaxParallelism 2 -v
 **Backup Only What You Need:**
 
 **Example 1: Backup only critical projects**
-```bash
-adobackup.exe backup-all -p "Production,Customer-Facing" -v
+```yaml
+- task: AzureDevOpsBackupTask@0
+  env:
+    ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
+  inputs:
+    Pat: '$(Backup.AdoPat.RO)'
+    BackupRoot: '$(Backup.Root)'
+    Projects: 'Production,Customer-Facing'
 ```
 
 **Example 2: Backup only specific components**
-```bash
-# Include only Builds, Work Items, Variables, and Queries (exclude Git if using separate Git backup solution)
-adobackup.exe backup-all --include-builds --include-workitems --include-variables --include-queries -v
+```yaml
+- task: AzureDevOpsBackupTask@0
+  env:
+    ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
+  inputs:
+    Pat: '$(Backup.AdoPat.RO)'
+    BackupRoot: '$(Backup.Root)'
+    BackupAll: false
+    IncludeBuilds: true
+    IncludeWorkItems: true
+    IncludeVariables: true
+    IncludeQueries: true
 ```
 
 **Example 3: Limit build history**
-```bash
-# Only backup last 30 days of builds
-adobackup.exe backup-all --days 30 -v
+```yaml
+- task: AzureDevOpsBackupTask@0
+  env:
+    ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
+  inputs:
+    Pat: '$(Backup.AdoPat.RO)'
+    BackupRoot: '$(Backup.Root)'
+    Days: '30'  # Only backup last 30 days of builds
 ```
 
 ### 3. Network Optimization
@@ -551,25 +572,34 @@ schedules:
 
 ### 3. Regular DR Testing
 
-**Monthly Test:**
-```bash
-# Restore to test organization
-adobackup.exe restore-all \
-  -p "CriticalProject" \
-  --target-org "https://dev.azure.com/testorg" \
-  --target-pat "$testPat" \
-  --target-project "DR-Test" \
-  --dry-run \
-  -v
+**Monthly Test — dry run to validate:**
+```yaml
+- task: AzureDevOpsRestoreTask@0
+  env:
+    ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
+  inputs:
+    Pat: '$(Backup.AdoPat.RO)'
+    BackupRoot: '$(Backup.Root)'
+    Projects: 'CriticalProject'
+    TargetOrganizationUrl: 'https://dev.azure.com/testorg'
+    TargetPat: '$(DR.AdoPat.RW)'
+    TargetProject: 'DR-Test'
+    DryRun: true
+    Verbose: true
 ```
 
-**Quarterly Full Test:**
-```bash
-# Full restore without dry-run
-adobackup.exe restore-all \
-  --target-org "https://dev.azure.com/drorg" \
-  --target-pat "$drPat" \
-  -v
+**Quarterly Full Test — actual restore:**
+```yaml
+- task: AzureDevOpsRestoreTask@0
+  env:
+    ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
+  inputs:
+    Pat: '$(Backup.AdoPat.RO)'
+    BackupRoot: '$(Backup.Root)'
+    TargetOrganizationUrl: 'https://dev.azure.com/drorg'
+    TargetPat: '$(DR.AdoPat.RW)'
+    DryRun: false
+    Verbose: true
 ```
 
 **Document Results:**
@@ -648,11 +678,12 @@ if ($errors.Count -eq 0) {
 - Source and destination details
 
 **Centralized Logging Example:**
-```bash
-# Send logs to central logging system
-adobackup.exe backup-all -v 2>&1 | 
-  Tee-Object -FilePath "D:\Logs\backup-$(Get-Date -Format 'yyyyMMdd-HHmmss').log" |
-  Send-ToSplunk -Index "adobacksups"
+
+Publish pipeline logs to an artifact store and forward to your central logging system using a pipeline step:
+```powershell
+# Forward backup logs to central logging (add as a pipeline step)
+Get-Content "$(Backup.Root)\logs\*.log" |
+  Tee-Object -FilePath "\\logserver\adobackups\backup-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
 ```
 
 ### 2. Compliance Requirements
@@ -729,7 +760,6 @@ $html | Out-File "$BackupRoot\reports\backup-report-$(Get-Date -Format 'yyyyMMdd
 
 ### Pattern 1: Continuous Backup with Daily Archival (24/7)
 
-**Azure Pipeline Example:**
 ```yaml
 # Run every 6 hours
 schedules:
@@ -740,14 +770,16 @@ schedules:
         - main
 
 steps:
-  # Step 1: Run adobackup (updates BackupRoot)
   - task: AzureDevOpsBackupTask@0
+    env:
+      ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
     inputs:
+      Pat: '$(Backup.AdoPat.RO)'
       BackupMode: 'Incremental'
       BackupRoot: '$(Backup.Root)'
+      BackupAll: true
       Verbose: true
-  
-  # Step 2: Copy BackupRoot to archive storage
+
   - powershell: |
       $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
       $archivePath = "$(Archive.Root)\Incremental\$timestamp"
@@ -756,55 +788,39 @@ steps:
     displayName: 'Archive Backup'
 ```
 
-**Local Script Example:**
-```powershell
-# Run backup
-adobackup.exe backup-all -i --BackupRoot "D:\ADOBackups" -v
-
-# Archive to storage
-$timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-robocopy "D:\ADOBackups" "E:\Archive\Continuous\$timestamp" /MIR /Z
-```
-
 ### Pattern 2: Multi-Tier Backup with Separate Archives
 
-**Backup Script:**
-```bash
-# Tier 1: Critical (every 4 hours) ? Archive to Tier1 storage
-adobackup.exe backup-all -p "Production,CustomerFacing" -i --BackupRoot "D:\ADOBackups\Tier1" -v
-robocopy "D:\ADOBackups\Tier1" "E:\Archive\Tier1\$(Get-Date -Format 'yyyyMMdd-HHmm')" /MIR
+Use separate pipeline runs for each tier, each targeting a different `BackupRoot` path and project scope:
 
-# Tier 2: Important (daily) ? Archive to Tier2 storage
-adobackup.exe backup-all -p "Development,Staging" -i --BackupRoot "D:\ADOBackups\Tier2" -v
-robocopy "D:\ADOBackups\Tier2" "E:\Archive\Tier2\$(Get-Date -Format 'yyyyMMdd')" /MIR
+```yaml
+# Tier 1: Critical projects (every 4 hours)
+- task: AzureDevOpsBackupTask@0
+  env:
+    ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
+  inputs:
+    Pat: '$(Backup.AdoPat.RO)'
+    BackupRoot: 'D:\ADOBackups\Tier1'
+    Projects: 'Production,CustomerFacing'
+    BackupMode: 'Incremental'
 
-# Tier 3: Archive (weekly) ? Archive to Tier3 storage
-adobackup.exe backup-all -p "Archived" --BackupRoot "D:\ADOBackups\Tier3" -v
-robocopy "D:\ADOBackups\Tier3" "E:\Archive\Tier3\$(Get-Date -Format 'yyyy-Www')" /MIR
+- powershell: robocopy "D:\ADOBackups\Tier1" "E:\Archive\Tier1\$(Get-Date -Format 'yyyyMMdd-HHmm')" /MIR
+  displayName: 'Archive Tier1'
 ```
 
 ### Pattern 3: Hot/Warm/Cold Storage Strategy
 
 **Understanding the Workflow:**
-1. `adobackup` updates the **hot storage** (BackupRoot)
-2. Your scripts copy BackupRoot to **warm storage** (recent history)
+1. The backup task updates the **hot storage** (BackupRoot)
+2. Your pipeline scripts copy BackupRoot to **warm storage** (recent history)
 3. Old warm copies are moved to **cold storage** (long-term archive)
 
-**Implementation:**
+**Implementation (add as pipeline steps after AzureDevOpsBackupTask):**
 ```powershell
-# Hot: BackupRoot - always current (adobackup writes here)
-$hotStorage = "D:\ADOBackups"
-
-# Warm: Recent backups (last 30 days) on standard HDD
+$hotStorage = "$(Backup.Root)"
 $warmStorage = "E:\ADOBackups\Warm"
-
-# Cold: Archive on cloud storage
 $coldStorage = "\\azure-blob\ADOBackups\Cold"
 
-# Step 1: Run adobackup (updates hot storage)
-adobackup.exe backup-all -i --BackupRoot $hotStorage -v
-
-# Step 2: Copy hot storage to warm storage with today's date
+# Step 1: Copy hot storage to warm storage with today's date
 $today = Get-Date -Format "yyyyMMdd"
 robocopy $hotStorage "$warmStorage\$today" /MIR /Z
 
@@ -828,113 +844,49 @@ Get-ChildItem $coldStorage -Directory |
 
 ### Pattern 4: Cross-Region Replication
 
-**Backup and Replicate:**
-```bash
-# Step 1: Run adobackup (updates primary BackupRoot)
-adobackup.exe backup-all -i --BackupRoot "D:\ADOBackups" -v
+**Add replication steps after AzureDevOpsBackupTask in your pipeline:**
+```powershell
+# Replicate to secondary region (file server)
+robocopy "$(Backup.Root)" "\\region2-server\ADOBackups\$(Get-Date -Format 'yyyyMMdd')" /MIR /Z /R:3
 
-# Step 2: Replicate to secondary region (file server)
-robocopy "D:\ADOBackups" "\\region2-server\ADOBackups\$(Get-Date -Format 'yyyyMMdd')" /MIR /Z /R:3
-
-# Step 3: Replicate to tertiary region (Azure Blob - Europe)
-az storage blob upload-batch \
-    --destination adobacksups \
-    --source "D:\ADOBackups" \
-    --account-name backupseu \
-    --metadata "backup-date=$(date +%Y-%m-%d)" "region=europe"
-
-# Step 4: Replicate to quaternary region (Azure Blob - Asia)
-az storage blob upload-batch \
-    --destination adobacksups \
-    --source "D:\ADOBackups" \
-    --account-name backupsasia \
-    --metadata "backup-date=$(date +%Y-%m-%d)" "region=asia"
+# Replicate to Azure Blob Storage (Europe)
+az storage blob upload-batch `
+    --destination adobackups `
+    --source "$(Backup.Root)" `
+    --account-name backupseu
 ```
 
-### Pattern 5: Scheduled Full + Incremental with Smart Archival
+### Pattern 5: Smart Archival — Weekly Full + Daily Incremental
 
-**Complete Workflow:**
+Use a PowerShell script as a pipeline step to archive after each run:
+
 ```powershell
-# backup-and-archive.ps1
+# archive-backup.ps1 — run as a pipeline step after AzureDevOpsBackupTask
 param(
-    [string]$BackupRoot = "D:\ADOBackups",
+    [string]$BackupRoot = "$(Backup.Root)",
     [string]$ArchiveRoot = "E:\Archive"
 )
 
-$dayOfWeek = (Get-Date).DayOfWeek
 $dayOfMonth = (Get-Date).Day
-$timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+$dayOfWeek  = (Get-Date).DayOfWeek
 
-# Determine backup mode
-if ($dayOfWeek -eq 'Sunday') {
-    $mode = "Full"
-    $archiveType = "Weekly"
-    Write-Host "Running WEEKLY FULL backup"
-} else {
-    $mode = "Incremental"
-    $archiveType = "Daily"
-    Write-Host "Running DAILY INCREMENTAL backup"
-}
-
-# Step 1: Run adobackup
-if ($mode -eq "Full") {
-    adobackup.exe backup-all --BackupRoot $BackupRoot -v
-} else {
-    adobackup.exe backup-all -i --BackupRoot $BackupRoot -v
-}
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Backup failed!"
-    exit 1
-}
-
-# Step 2: Archive BackupRoot to appropriate location
 if ($dayOfMonth -eq 1) {
-    # Monthly archive
     $archivePath = "$ArchiveRoot\Monthly\$(Get-Date -Format 'yyyy-MM')"
 } elseif ($dayOfWeek -eq 'Sunday') {
-    # Weekly archive
     $archivePath = "$ArchiveRoot\Weekly\$(Get-Date -Format 'yyyy-Www')"
 } else {
-    # Daily archive
     $archivePath = "$ArchiveRoot\Daily\$(Get-Date -Format 'yyyyMMdd')"
 }
 
 Write-Host "Archiving to: $archivePath"
 robocopy $BackupRoot $archivePath /MIR /Z /R:3
 
-# Step 3: Clean up old archives
-# Keep daily for 7 days
-Get-ChildItem "$ArchiveRoot\Daily" -Directory | 
-    Where-Object { $_.CreationTime -lt (Get-Date).AddDays(-7) } |
-    Remove-Item -Recurse -Force
+# Retention: daily=7d, weekly=4w, monthly=12m
+Get-ChildItem "$ArchiveRoot\Daily"   -Directory | Where-Object { $_.CreationTime -lt (Get-Date).AddDays(-7)     } | Remove-Item -Recurse -Force
+Get-ChildItem "$ArchiveRoot\Weekly"  -Directory | Where-Object { $_.CreationTime -lt (Get-Date).AddDays(-28)    } | Remove-Item -Recurse -Force
+Get-ChildItem "$ArchiveRoot\Monthly" -Directory | Where-Object { $_.CreationTime -lt (Get-Date).AddMonths(-12)  } | Remove-Item -Recurse -Force
 
-# Keep weekly for 4 weeks
-Get-ChildItem "$ArchiveRoot\Weekly" -Directory | 
-    Where-Object { $_.CreationTime -lt (Get-Date).AddDays(-28) } |
-    Remove-Item -Recurse -Force
-
-# Keep monthly for 12 months
-Get-ChildItem "$ArchiveRoot\Monthly" -Directory | 
-    Where-Object { $_.CreationTime -lt (Get-Date).AddMonths(-12) } |
-    Remove-Item -Recurse -Force
-
-Write-Host "? Backup and archival completed successfully"
-```
-
-**Schedule with Task Scheduler:**
-```powershell
-# Create scheduled task for daily backup+archive
-$action = New-ScheduledTaskAction -Execute "PowerShell.exe" `
-    -Argument "-File C:\Scripts\backup-and-archive.ps1"
-
-$trigger = New-ScheduledTaskTrigger -Daily -At 2AM
-
-$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" `
-    -LogonType ServiceAccount -RunLevel Highest
-
-Register-ScheduledTask -TaskName "ADO-Backup-Daily" `
-    -Action $action -Trigger $trigger -Principal $principal
+Write-Host "Archival completed successfully"
 ```
 
 ### Pattern 6: Azure Pipeline with Multiple Archive Destinations
@@ -1057,7 +1009,7 @@ jobs:
           Write-Error "Metadata directory not found!"
           exit 1
         }
-        Write-Host "? Backup validation passed"
+        Write-Host "  Backup validation passed"
       displayName: 'Validate Backup'
 
     # Step 8: Upload logs
@@ -1074,7 +1026,7 @@ jobs:
 - [ ] Implement 3-2-1 backup rule (primary + 2 copies)
 - [ ] Use incremental backups for frequent operations
 - [ ] Define backup frequency per resource type
-- [ ] Implement YOUR OWN retention policy (adobackup doesn't manage this)
+- [ ] Implement YOUR OWN retention policy (the backup task doesn't manage this)
 - [ ] Copy BackupRoot to archive storage after each backup run
 
 💾 **Storage**
@@ -1085,8 +1037,8 @@ jobs:
 - [ ] Monitor disk space continuously
 - [ ] Implement automated archival scripts
 
-📁 **Understanding adobackup Storage Model**
-- [ ] Understand adobackup uses a SINGLE BackupRoot folder
+📁 **Understanding the Storage Model**
+- [ ] The backup task uses a SINGLE BackupRoot folder
 - [ ] Incremental mode updates files IN PLACE (not separate dated folders)
 - [ ] YOU are responsible for copying BackupRoot to create historical versions
 - [ ] Implement your own backup tool for archival (robocopy, rsync, cloud sync, etc.)
@@ -1121,7 +1073,7 @@ jobs:
 ---
 
 **Important Reminder:**
-The `adobackup` utility manages retrieving data from Azure DevOps and storing it in your `BackupRoot` folder. **You** are responsible for:
+The backup task manages retrieving data from Azure DevOps and storing it in your `BackupRoot` folder. **You** are responsible for:
 - Copying `BackupRoot` to backup storage (daily, weekly, etc.)
 - Managing retention policies
 - Ensuring multiple generations of backups exist
@@ -1129,6 +1081,5 @@ The `adobackup` utility manages retrieving data from Azure DevOps and storing it
 - Implementing the 3-2-1 backup rule
 
 **See Also:**
-- [Command Reference](./command-reference.md)
 - [Pipeline Integration](./pipeline-integration.md)
 - [Troubleshooting Guide](./troubleshooting.md)

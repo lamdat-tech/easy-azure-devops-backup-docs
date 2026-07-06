@@ -46,6 +46,11 @@ parameters:
     type: boolean
     default: true
   
+  - name: 'includeReleases'
+    displayName: 'Include Release Definitions'
+    type: boolean
+    default: false
+  
   - name: 'includeWorkItems'
     displayName: 'Include Work Items'
     type: boolean
@@ -70,7 +75,72 @@ parameters:
     displayName: 'Include Pull Requests'
     type: boolean
     default: false
-  
+
+  - name: 'includeTaskGroups'
+    displayName: 'Include Task Groups'
+    type: boolean
+    default: false
+
+  - name: 'includeBoards'
+    displayName: 'Include Boards'
+    type: boolean
+    default: false
+
+  - name: 'includeDashboards'
+    displayName: 'Include Dashboards'
+    type: boolean
+    default: false
+
+  - name: 'includeWikis'
+    displayName: 'Include Wikis'
+    type: boolean
+    default: false
+
+  - name: 'includeAreasAndIterations'
+    displayName: 'Include Areas & Iterations'
+    type: boolean
+    default: false
+
+  - name: 'restoreAreasOnly'
+    displayName: 'Restore Areas Only'
+    type: boolean
+    default: false
+
+  - name: 'restoreIterationsOnly'
+    displayName: 'Restore Iterations Only'
+    type: boolean
+    default: false
+
+  - name: 'includeEnvironments'
+    displayName: 'Include Pipeline Environments'
+    type: boolean
+    default: false
+
+  - name: 'skipEnvironmentResources'
+    displayName: 'Skip Environment Resources'
+    type: boolean
+    default: false
+
+  - name: 'skipEnvironmentApprovals'
+    displayName: 'Skip Environment Approvals'
+    type: boolean
+    default: false
+
+  - name: 'skipEnvironmentChecks'
+    displayName: 'Skip Environment Checks'
+    type: boolean
+    default: false
+
+  - name: 'includeTestPlans'
+    displayName: 'Include Test Plans'
+    type: boolean
+    default: false
+
+  - name: 'includeTestRuns'
+    displayName: 'Include Test Runs'
+    type: boolean
+    default: false
+
   # Git-specific options
   - name: 'gitRepositories'
     displayName: 'Git Repositories (comma-separated, * = all)'
@@ -87,6 +157,17 @@ parameters:
     displayName: 'Build Definitions (comma-separated, * = all)'
     type: string
     default: '*'  # * = all definitions, or specify comma-separated names
+  
+  # Release-specific options
+  - name: 'releaseDefinitionNames'
+    displayName: 'Release Definition Names (comma-separated, * = all)'
+    type: string
+    default: '*'  # * = all release definitions, or specify comma-separated names
+  
+  - name: 'updateExistingReleases'
+    displayName: 'Update Existing Release Definitions'
+    type: boolean
+    default: false  # false = skip existing, true = update existing
   
   - name: 'serviceConnections'
     displayName: 'Service Connections (comma-separated, * = all)'
@@ -110,6 +191,18 @@ parameters:
     type: string
     default: '*'  # * = all queries, or specify folder path like 'Shared Queries/Team A'
 
+  # Task Groups-specific options
+  - name: 'taskGroupNames'
+    displayName: 'Task Group Names (comma-separated, * = all)'
+    type: string
+    default: '*'  # * = all task groups, or specify comma-separated names like 'Deploy to Prod,Deploy to Staging'
+
+  # Wiki-specific options
+  - name: 'wikiName'
+    displayName: 'Wiki Name (* = all)'
+    type: string
+    default: '*'  # * = all wikis, or specify specific wiki name like 'MyProject.wiki'
+
 trigger: none
 
 pool:
@@ -121,7 +214,7 @@ variables:
   - name: 'buildConfiguration'
     value: 'Debug'
   - name: 'dotnetVersion'
-    value: '9.0.x'
+    value: '10.0.x'
 
 jobs:
 - job: RestoreJob
@@ -153,12 +246,27 @@ jobs:
         RestoreAll: ${{ parameters.restoreAll }}
         IncludeGit: ${{ parameters.includeGit }}
         IncludeBuilds: ${{ parameters.includeBuilds }}
+        IncludeReleases: ${{ parameters.includeReleases }}
         IncludeWorkItems: ${{ parameters.includeWorkItems }}
         IncludeVariables: ${{ parameters.includeVariables }}
         IncludeQueries: ${{ parameters.includeQueries }}
         IncludeServiceConnections: ${{ parameters.includeServiceConnections }}
         IncludePullRequests: ${{ parameters.includePullRequests }}
-        
+        IncludeTaskGroups: ${{ parameters.includeTaskGroups }}
+        IncludeBoards: ${{ parameters.includeBoards }}
+        IncludeDashboards: ${{ parameters.includeDashboards }}
+        IncludeWikis: ${{ parameters.includeWikis }}
+        IncludeAreasAndIterations: ${{ parameters.includeAreasAndIterations }}
+        RestoreAreasOnly: ${{ parameters.restoreAreasOnly }}
+        RestoreIterationsOnly: ${{ parameters.restoreIterationsOnly }}
+        IncludeEnvironments: ${{ parameters.includeEnvironments }}
+        SkipEnvironmentResources: ${{ parameters.skipEnvironmentResources }}
+        SkipEnvironmentApprovals: ${{ parameters.skipEnvironmentApprovals }}
+        SkipEnvironmentChecks: ${{ parameters.skipEnvironmentChecks }}
+
+
+        IncludeTestPlans: ${{ parameters.includeTestPlans }}
+
         # Git-specific options
         GitRepositories: '${{ parameters.gitRepositories }}'
         PullRequestIds: '${{ parameters.pullRequestIds }}'
@@ -167,11 +275,24 @@ jobs:
         BuildDefinitions: '${{ parameters.buildDefinitions }}'
         ServiceConnections: '${{ parameters.serviceConnections }}'
         
+        # Release-specific options
+        ReleaseDefinitionNames: '${{ parameters.releaseDefinitionNames }}'
+        UpdateExistingReleases: ${{ parameters.updateExistingReleases }}
+        
         # Work Items-specific options
         WorkItemIds: '${{ parameters.workItemIds }}'
-        
+
         # Queries-specific options
         QueriesFolderPath: '${{ parameters.queriesFolderPath }}'
+
+        # Task Groups-specific options
+        TaskGroupNames: '${{ parameters.taskGroupNames }}'
+
+        # Wiki-specific options
+        WikiName: '${{ parameters.wikiName }}'
+
+        # Test Plans-specific options
+        IncludeTestRuns: ${{ parameters.includeTestRuns }}
 
     # Upload CLI log files for troubleshooting and audit trail
     - task: PublishBuildArtifacts@1

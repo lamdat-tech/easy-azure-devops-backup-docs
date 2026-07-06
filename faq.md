@@ -4,9 +4,9 @@ Common questions and answers about the Azure DevOps Backup & Restore utility.
 
 ## General Questions
 
-### What is adobackup?
+### What is Azure DevOps Backup & Restore?
 
-adobackup (Azure DevOps Backup & Restore) is a command-line utility that enables comprehensive backup and restore operations for Azure DevOps resources including Git repositories, build definitions, work items, pipeline variables, and queries.
+Azure DevOps Backup & Restore is a solution that enables comprehensive backup and restore operations for Azure DevOps resources including Git repositories, build definitions, work items, pipeline variables, and queries. It is delivered as Azure DevOps pipeline tasks (**AzureDevOpsBackupTask** and **AzureDevOpsRestoreTask**) that integrate directly into your CI/CD pipelines.
 
 ### What Azure DevOps resources can be backed up?
 
@@ -17,21 +17,25 @@ The following resources can be backed up:
 - **Work Items** - Complete history, attachments, and relationships
 - **Pipeline Variables** - Variable groups (including secret values)
 - **Shared Queries** - Query definitions and folder structures
+- **Pull Requests** - PR metadata, comments, and relationships
+- **Task Groups** - Reusable task group definitions
+- **Boards** - Board configurations and settings
+- **Dashboards** - Dashboard widgets and layouts
+- **Wikis** - Wiki pages and content
+- **Release Definitions** - Release pipeline configurations
+- **Service Connections** - Service endpoint configurations
+- **Areas & Iterations** - Classification node hierarchies
+- **Test Plans** - Test plans, suites, runs, and results
 
 ### Do I need a license?
 
-Yes, a valid license key is required for production use. Contact Lamdat for licensing information.
+Yes, a valid license key is required. The license is issued per **Azure DevOps organization**. A **trial license** is available — visit [easyadobackup.com](https://easyadobackup.com/) to request one.
+
+Once you receive your license key, store it as a secret variable (`Backup.LicenseKey`) and pass it as the `ADOBACKUP_LICENSE_KEY` environment variable to each backup and restore task.
 
 ### What platforms are supported?
 
-- Windows 10 and later
-- Windows Server 2016 and later
-- Linux (with .NET 9 runtime)
-- macOS (with .NET 9 runtime)
-
-### What .NET version is required?
-
-.NET 9.0 runtime or later is required.
+The pipeline tasks run on any Azure Pipelines build agent (Microsoft-hosted or self-hosted) that supports Windows. A self-hosted Windows agent is recommended for large backups due to disk space requirements.
 
 ---
 
@@ -79,24 +83,27 @@ Estimate based on your organization:
 
 ### Can I backup only specific resources?
 
-Yes! Use include flags to specify resources:
+Yes! Use the include flag inputs on `AzureDevOpsBackupTask`:
 
-```bash
-# Backup only Git repositories
-adobackup.exe backup-all --include-git
-
-# Backup only work items
-adobackup.exe backup-all --include-workitems
+```yaml
+- task: AzureDevOpsBackupTask@0
+  env:
+    ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
+  inputs:
+    Pat: '$(Backup.AdoPat.RO)'
+    BackupRoot: '$(Backup.Root)'
+    BackupAll: false
+    IncludeGit: true       # Only Git repositories
+    IncludeWorkItems: true # Only work items
 ```
-
-You can also use specific commands like `git-backup`, `build-backup`, etc.
 
 ### Can I backup specific projects only?
 
-Yes, use the `-p` parameter:
+Yes, use the `Projects` input:
 
-```bash
-adobackup.exe backup-all -p "ProjectA,ProjectB"
+```yaml
+inputs:
+  Projects: 'ProjectA,ProjectB'
 ```
 
 ### Does backup impact my Azure DevOps performance?
@@ -118,15 +125,11 @@ If you consistently hit limits, reduce `MaxParallelism` setting.
 
 ### Can I schedule automatic backups?
 
-Yes! Integrate with:
-- **Azure Pipelines** (recommended) - See [Pipeline Integration Guide](./pipeline-integration.md)
-- **Windows Task Scheduler**
-- **Cron (Linux/macOS)**
-- **Jenkins, GitHub Actions**, or other CI/CD tools
+Yes! Use Azure Pipelines scheduled triggers. See the [Pipeline Integration Guide](./pipeline-integration.md) for complete examples.
 
 ### Why does build backup always include history?
 
-Build history is valuable for audit trails and compliance. The utility always backs up build history (up to 100 builds per definition per run - Azure DevOps API limitation). You can use `--days` parameter to limit the time range.
+Build history is valuable for audit trails and compliance. The backup task always backs up build history (up to 100 builds per definition per run — Azure DevOps API limitation). You can use the `Days` input to limit the time range.
 
 ---
 
@@ -134,35 +137,46 @@ Build history is valuable for audit trails and compliance. The utility always ba
 
 ### Can I restore to a different organization?
 
-Yes! Use the `--target-org` and `--target-pat` parameters:
+Yes! Use the `TargetOrganizationUrl` and `TargetPat` inputs on `AzureDevOpsRestoreTask`:
 
-```bash
-adobackup.exe restore-all \
-  --target-org "https://dev.azure.com/targetorg" \
-  --target-pat "target-pat-token"
+```yaml
+- task: AzureDevOpsRestoreTask@0
+  env:
+    ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
+  inputs:
+    Pat: '$(Backup.AdoPat.RO)'
+    BackupRoot: '$(Backup.Root)'
+    TargetOrganizationUrl: 'https://dev.azure.com/targetorg'
+    TargetPat: '$(Target.AdoPat.RW)'
 ```
+
+**Note for Work Items:** Cross-organization work items restore uses a two-phase process — Phase 1 creates items with new IDs while building a source-to-target ID mapping file (`.metadata/id-mapping.json`), Phase 2 relinks all relations using the new target IDs. Specify exactly one source project with `Projects` when using `TargetOrganizationUrl`.
 
 ### Can I restore to a different project?
 
-Yes! Use the `--target-project` parameter:
+Yes! Use the `TargetProject` input:
 
-```bash
-adobackup.exe restore-all -p "SourceProject" --target-project "TargetProject"
+```yaml
+inputs:
+  Projects: 'SourceProject'
+  TargetProject: 'TargetProject'
 ```
 
 **Note:** The target project must exist before running the restore.
 
 ### Does restore overwrite existing resources?
 
-Yes, restore will overwrite existing resources with the same name/ID. Always use `--dry-run` to preview changes first:
+Yes, restore will overwrite existing resources with the same name/ID. Always use `DryRun: true` to preview changes first:
 
-```bash
-adobackup.exe restore-all --dry-run -v
+```yaml
+inputs:
+  DryRun: true
+  Verbose: true
 ```
 
 ### What is dry-run mode?
 
-Dry-run mode (`--dry-run`) previews what would be restored without making any actual changes. This is useful for:
+`DryRun: true` previews what would be restored without making any actual changes. This is useful for:
 - Validating restore before execution
 - Checking for conflicts
 - Estimating restore time
@@ -170,45 +184,27 @@ Dry-run mode (`--dry-run`) previews what would be restored without making any ac
 
 ### Can I restore only specific resources?
 
-Yes, use resource filters:
+Yes, use the include flag inputs:
 
-```bash
-# Restore specific repositories
-adobackup.exe restore-all --repositories "Repo1,Repo2"
-
-# Restore specific build definitions
-adobackup.exe restore-all --definitions "1,2,5"
-
-# Restore specific work items
-adobackup.exe restore-all --workitem-ids "100,101,102"
+```yaml
+inputs:
+  RestoreAll: false
+  IncludeGit: true
+  GitRepositories: 'Repo1,Repo2'    # specific repos
+  IncludeBuilds: true
+  BuildDefinitions: '1,2,5'         # specific definitions
+  IncludeWorkItems: true
+  WorkItemIds: '100,101,102'        # specific work items
 ```
 
 ### What is bypass rules in work items restore?
 
-`--bypass-rules` skips work item validation rules during restore. This is useful when:
+`BypassRules: true` skips work item validation rules during restore. This is useful when:
 - Source and target have different work item configurations
 - Required fields differ between organizations
 - Custom rules block restoration
 
 **Default:** `true` (bypass enabled)
-
-```bash
-# Enable bypass rules (default)
-adobackup.exe workitems-restore --bypass-rules true
-
-# Disable bypass rules (strict validation)
-adobackup.exe workitems-restore --bypass-rules false
-```
-
-### Can I restore from a specific backup date?
-
-Yes, use the `-d` parameter with YYYYMMDD format:
-
-```bash
-adobackup.exe restore-all -d "20250128"
-```
-
-Without this parameter, the most recent backup is used.
 
 ### How long does a restore take?
 
@@ -227,24 +223,11 @@ Similar to backup duration, it depends on:
 
 Yes! Use one of these approaches:
 
-1. **Dry-run mode:**
-   ```bash
-   adobackup.exe restore-all --dry-run -v
-   ```
+1. **Dry-run mode** — set `DryRun: true` in the task inputs (no changes are made)
 
-2. **Restore to test organization:**
-   ```bash
-   adobackup.exe restore-all \
-     --target-org "https://dev.azure.com/testorg" \
-     --target-pat "test-pat"
-   ```
+2. **Restore to test organization** — use `TargetOrganizationUrl` and `TargetPat` inputs
 
-3. **Restore to different project:**
-   ```bash
-   adobackup.exe restore-all \
-     -p "Production" \
-     --target-project "Test-Restore"
-   ```
+3. **Restore to different project** — use `TargetProject` input with a test project name
 
 ---
 
@@ -252,13 +235,9 @@ Yes! Use one of these approaches:
 
 ### How are credentials stored?
 
-Credentials are NOT stored by the utility. You must provide them:
-- As command-line parameters
-- In configuration file (not recommended for PAT)
-- Via environment variables
-- Retrieved from secure vault (Azure Key Vault, etc.)
+Credentials are NOT stored by the task. Provide them as secret variables in a pipeline variable group and reference them in the task inputs. For enhanced security, link your variable group to Azure Key Vault so secrets are retrieved at runtime.
 
-**Best Practice:** Use Azure Key Vault or similar for credential management.
+**Best Practice:** Store all secrets in Azure Key Vault and link them to your variable group.
 
 ### Are PAT tokens secure?
 
@@ -396,39 +375,38 @@ For incremental backups, impact is minimal and can run during business hours.
 
 ### Can I migrate between Azure DevOps organizations?
 
-Yes! This is a common use case:
+Yes! This is a common use case. Use two pipelines:
 
-```bash
-# Backup from source org
-adobackup.exe backup-all \
-  --OrganizationUrl "https://dev.azure.com/sourceorg" \
-  --Pat "source-pat"
+1. **Backup pipeline** — runs against the source organization
+2. **Restore pipeline** — uses `TargetOrganizationUrl` and `TargetPat` inputs pointing to the target organization
 
-# Restore to target org
-adobackup.exe restore-all \
-  --target-org "https://dev.azure.com/targetorg" \
-  --target-pat "target-pat"
-```
+See [Pipeline Integration Guide](./pipeline-integration.md#example-2-cross-organization-restore) for a complete example.
 
 ### Can I clone a project?
 
-Yes! Restore to a different project name:
+Yes! Set `TargetProject` to a different project name in the restore task:
 
-```bash
-adobackup.exe restore-all \
-  -p "SourceProject" \
-  --target-project "ClonedProject"
+```yaml
+inputs:
+  Projects: 'SourceProject'
+  TargetProject: 'ClonedProject'
+  RestoreAll: true
 ```
 
-The target project must exist before cloning.
+The target project must exist before running the restore.
 
 ### Does restore preserve work item IDs?
 
-Work item IDs are assigned by Azure DevOps and cannot be preserved when restoring to a different organization or project. The utility will create new work items with new IDs but preserve relationships and history.
+When restoring to the same organization and project, work item IDs are preserved. When restoring cross-organization or cross-project, work item IDs cannot be preserved. The restore task uses a two-phase approach:
+
+- **Phase 1:** Creates all work items in the target with new IDs assigned by Azure DevOps, and builds a source-to-target ID mapping file (`.metadata/id-mapping.json`).
+- **Phase 2:** Relinks all relations, parent-child links, and references using the new target IDs from the mapping.
+
+This ensures all relationships are preserved even though IDs change. The mapping file is persisted so re-runs are idempotent — already-mapped items are detected and duplicate relations are skipped.
 
 ### Can I merge backups from multiple organizations?
 
-No, the utility does not support merging. Each backup is organization-specific. For multi-org scenarios:
+No, the backup task does not support merging. Each backup is organization-specific. For multi-org scenarios:
 - Backup each organization separately
 - Restore each organization separately
 - Use different backup directories
@@ -437,31 +415,22 @@ No, the utility does not support merging. Each backup is organization-specific. 
 
 ## Licensing Questions
 
-### How do I activate my license?
+### How do I set up my license?
 
-```bash
-adobackup.exe license-activate -k "your-license-key"
+1. Store your license key as a **secret variable** named `Backup.LicenseKey` in your variable group **"ADO Backup Restore"**
+2. Pass it as `ADOBACKUP_LICENSE_KEY` environment variable to **both** the backup and restore tasks:
+
+```yaml
+- task: AzureDevOpsBackupTask@0
+  env:
+    ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)  # Required
+  inputs:
+    # ...
 ```
 
-This creates a `license.lic` file in the application directory.
+### What happens if my license expires or is invalid?
 
-### How do I validate my license?
-
-```bash
-adobackup.exe license-validate -k "your-license-key"
-```
-
-### Where is the license file stored?
-
-By default, the license file is stored in the application directory as `license.lic`. You can specify a custom location:
-
-```bash
-adobackup.exe license-activate -k "key" -f "C:\path\to\license.lic"
-```
-
-### What happens if my license expires?
-
-The utility will stop working and display a license error message. Contact Lamdat to renew your license.
+The task will fail with a license error. Visit [easyadobackup.com](https://easyadobackup.com/) to request a trial or renew your production license.
 
 
 ---
@@ -472,31 +441,89 @@ The utility will stop working and display a license error message. Contact Lamda
 
 Yes! See the [Pipeline Integration Guide](./pipeline-integration.md) for detailed examples.
 
-### Can I use with GitHub Actions?
-
-Yes! The utility can be used with any CI/CD system that supports:
-- Running command-line tools
-- .NET 9 runtime
-- Secure secret management
-
-### Can I run in Docker?
-
-Yes, create a Dockerfile:
-
-```dockerfile
-FROM mcr.microsoft.com/dotnet/runtime:9.0
-COPY adobackup /app/
-WORKDIR /app
-ENTRYPOINT ["./adobackup"]
-```
-
 ### Can I integrate with monitoring systems?
 
-Yes! The utility:
-- Returns exit codes (0 = success, 1 = failure)
-- Logs to stdout/stderr
-- Creates log files
-- Can integrate with Splunk, ELK, etc.
+## Test Plans Questions
+
+### What test plan data is backed up?
+
+The test plans backup includes:
+- **Test Plans** - Top-level containers with name, description, state, iteration, and area path
+- **Test Suites** - Hierarchical structure (static, requirement-based, query-based)
+- **Test Cases** - Test case associations within suites
+- **Test Runs** - Test run history (configurable date range, default: last 90 days)
+- **Test Results** - Detailed outcomes, durations, and result metadata
+
+### How much test run history is backed up?
+
+By default, the last **90 days** of test run history is backed up. You can customize this:
+
+Use the `TestRunsDays` or `TestRunsAll` inputs on `AzureDevOpsBackupTask`. By default, the last 90 days are backed up.
+
+**Note:** Backing up all test runs may take a long time for organizations with extensive test history.
+
+### What happens to requirement-based and query-based suites during restore?
+
+The restore process handles suite type conversions automatically:
+
+- **Requirement-Based Suites**: If the requirement work item is missing in the target project, the suite is converted to a **static suite** (with a logged warning)
+- **Query-Based Suites**: If the query is missing in the target project, the suite is converted to a **static suite** (with a logged warning)
+- **Static Suites**: Restored as-is with full test case associations
+
+This ensures test plans are restorable even when dependencies are missing in the target.
+
+### What if test case work items don't exist in the target project?
+
+During restore, test case work items are validated before association:
+
+- **Existing test cases**: Associated successfully with the test suite
+- **Missing test cases**: Skipped with a warning logged
+- **Summary report**: Shows `successCount/skippedCount` for each suite
+
+**Example:**
+```
+✅ Test Suite "Regression Tests": 45/50 test cases restored (5 skipped - test cases 1234, 1235, 1236, 1237, 1238 not found)
+```
+
+**Recommendation:** Restore work items before restoring test plans to ensure all test case associations succeed.
+
+### Can I restore test plans without test runs?
+
+Yes! By default, only **test plans and suites** are restored. Test runs are optional:
+
+Use `IncludeTestPlans: true` on the restore task. Test runs can be included via `TestRunsInclude: true`.
+
+### Can I restore test plans to a different project?
+
+Yes! Use the `TargetProject` input on `AzureDevOpsRestoreTask`:
+
+```yaml
+inputs:
+  Projects: 'SourceProject'
+  TargetProject: 'TargetProject'
+  IncludeTestPlans: true
+```
+
+Test plan and suite IDs are automatically mapped from source to target and saved to `.metadata/test-plan-id-mapping.json` and `test-suite-id-mapping.json`.
+
+### How is the test suite hierarchy preserved during backup and restore?
+
+Test suites are backed up and restored hierarchically using a **depth-first recursive** approach:
+
+1. **Backup**: Root suite is backed up first, then child suites recursively
+2. **Restore**: Root suite is restored first, then child suites in the same order
+3. **ID Mapping**: Suite IDs are tracked from source → target for test run restoration
+
+This ensures the complete suite tree structure is preserved exactly as it was in the source.
+
+---
+
+
+Yes! The pipeline tasks:
+- Return pipeline success/failure status
+- Create log files in `{BackupRoot}/logs/`
+- Can be published as artifacts for downstream processing
+- Log output can be forwarded to Splunk, ELK, or other monitoring systems via pipeline scripts
 
 ---
 
@@ -504,15 +531,15 @@ Yes! The utility:
 
 ### How do I report a bug?
 
-Contact Lamdat support at support@lamdat.com with:
+Visit [easyadobackup.com](https://easyadobackup.com/) with:
 - Detailed error description
 - Log files (from `{BackupRoot}/logs/`)
-- Command used
-- Organization size and configuration
+- Task inputs used (with sensitive data redacted)
+- Organization size and Azure DevOps tier
 
 ### How do I request a feature?
 
-Email feature requests to support@lamdat.com with:
+Visit [easyadobackup.com](https://easyadobackup.com/) with:
 - Detailed feature description
 - Use case and benefits
 - Priority level
@@ -520,9 +547,8 @@ Email feature requests to support@lamdat.com with:
 ### Where can I find more documentation?
 
 - [Getting Started Guide](./getting-started.md)
-- [Command Reference](./command-reference.md)
+- [Pipeline Integration Guide](./pipeline-integration.md)
 - [Best Practices](./best-practices.md)
-- [Pipeline Integration](./pipeline-integration.md)
 - [Troubleshooting Guide](./troubleshooting.md)
 
 ### Is there a community forum?
@@ -535,8 +561,8 @@ Contact Lamdat for information about community resources and support channels.
 
 If your question isn't answered here:
 1. Check the [Troubleshooting Guide](./troubleshooting.md)
-2. Review the [Command Reference](./command-reference.md)
-3. Contact support: support@lamdat.com
+2. Review the [Pipeline Integration Guide](./pipeline-integration.md)
+3. Visit [easyadobackup.com](https://easyadobackup.com/) for support
 
 ---
 

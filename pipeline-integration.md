@@ -3,8 +3,6 @@
 **This is the recommended way to use Azure DevOps Backup & Restore.** Pipeline tasks provide automated, scheduled backups integrated directly into your Azure DevOps environment.
 
 > **💡 Start Here:** This guide will walk you through setting up automated backups using Azure Pipeline tasks.
->
-> **Alternative:** If you need manual operations or CLI access, see [Getting Started with CLI](./getting-started.md).
 
 ## Table of Contents
 
@@ -39,11 +37,15 @@ Using Azure Pipeline tasks for backup operations provides:
 
 Follow these steps to set up your first automated backup:
 
-### Step 1: Install the Extension
+### Step 1: Obtain a License Key
+
+Request a trial or purchase a production license at [easyadobackup.com](https://easyadobackup.com/). The license is issued per **Azure DevOps organization**.
+
+### Step 2: Install the Extension
 
 Install the **Azure DevOps Backup & Restore** extension from the Visual Studio Marketplace or deploy it to your organization.
 
-### Step 2: Create Variable Group
+### Step 3: Create Variable Group
 
 In your Azure DevOps project:
 1. Go to **Pipelines** → **Library**
@@ -53,7 +55,7 @@ In your Azure DevOps project:
 5. Mark sensitive values as **Secret**
 6. Click **Save**
 
-### Step 3: Create Your First Backup Pipeline
+### Step 4: Create Your First Backup Pipeline
 
 1. Go to **Pipelines** → **Pipelines**
 2. Click **New pipeline**
@@ -63,7 +65,7 @@ In your Azure DevOps project:
 6. Replace the YAML with the [Basic Incremental Backup](#example-1-basic-incremental-backup) example below
 7. Click **Save and run**
 
-### Step 4: Configure Schedule
+### Step 5: Configure Schedule
 
 The example pipeline includes a daily schedule. Adjust the `cron` expression to match your needs:
 - Daily at 2 AM: `"0 2 * * *"`
@@ -76,13 +78,31 @@ That's it! Your backups will now run automatically according to the schedule.
 
 ## Prerequisites
 
-### 1. Variable Group Setup
+### 1. License Key
+
+The license is issued per **Azure DevOps organization**. A **trial license** is available — visit [easyadobackup.com](https://easyadobackup.com/) to request one.
+
+After receiving your license key:
+1. Store it as a secret variable `Backup.LicenseKey` in your variable group (see below)
+2. Pass it as `ADOBACKUP_LICENSE_KEY` environment variable to **each** backup and restore task:
+
+```yaml
+- task: AzureDevOpsBackupTask@0
+  env:
+    ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)  # Pass secret directly as environment variable to each task
+  inputs:
+    # ... task inputs
+```
+
+> The same `env` block is required on both `AzureDevOpsBackupTask` and `AzureDevOpsRestoreTask`.
+
+### 2. Variable Group Setup
 
 Create a variable group named **"ADO Backup Restore"** with the following variables:
 
 | Variable Name | Description | Secret |
 |---------------|-------------|--------|
-| `Backup.LicenseKey` | Your license key | 🔒 Yes |
+| `Backup.LicenseKey` | Your license key (issued per Azure DevOps organization) | 🔒 Yes |
 | `Backup.AdoPat.RO` | Read-only PAT for backups | 🔒 Yes |
 | `Backup.AdoPat.RW` | Read-write PAT for restores | 🔒 Yes |
 | `Backup.Root` | Backup root directory path | ❌ No |
@@ -95,11 +115,11 @@ Create a variable group named **"ADO Backup Restore"** with the following variab
 5. Mark PAT and License variables as "Secret"
 6. Save
 
-### 2. Install the Extension
+### 3. Install the Extension
 
 Install the **Azure DevOps Backup Task** extension from the marketplace (or deploy manually).
 
-### 3. Agent Requirements
+### 4. Agent Requirements
 
 Ensure your build agent has:
 - .NET 9 Runtime installed
@@ -760,12 +780,6 @@ Now that you have pipeline tasks set up:
 1. **[Review Best Practices](./best-practices.md)** - Optimize your backup strategy
 2. **[Explore Use Cases](./use-cases.md)** - Common scenarios and solutions
 3. **[Troubleshooting Guide](./troubleshooting.md)** - Common issues and solutions
-
-### CLI Alternative
-
-If you need manual operations or scripting outside of pipelines:
-- **[Getting Started with CLI](./getting-started.md)** - CLI installation and usage
-- **[Command Reference](./command-reference.md)** - Complete CLI command documentation
 
 ## See Also
 

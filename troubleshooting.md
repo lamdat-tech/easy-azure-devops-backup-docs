@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-Solutions to common issues and error messages when using the Azure DevOps Backup & Restore utility.
+Solutions to common issues when using the Azure DevOps Backup & Restore pipeline tasks.
 
 ## Table of Contents
 
@@ -23,44 +23,45 @@ When encountering any issue, follow these steps:
 
 ### 1. Enable Verbose Logging
 
-Always run with `-v` flag for detailed output:
+Set `Verbose: true` in your task inputs:
 
-```bash
-adobackup.exe backup-all -v
+```yaml
+- task: AzureDevOpsBackupTask@0
+  env:
+    ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
+  inputs:
+    Pat: '$(Backup.AdoPat.RO)'
+    BackupRoot: '$(Backup.Root)'
+    Verbose: true
 ```
 
 ### 2. Check the Logs
 
-Logs are stored in `{BackupRoot}/logs/` directory. Review the most recent log file for error details.
+Logs are stored in `{BackupRoot}/logs/`. Publish them as pipeline artifacts so they are accessible after each run:
 
-```powershell
-# View latest log file
-Get-Content (Get-ChildItem "D:\ADOBackups\logs" | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
+```yaml
+- task: PublishBuildArtifacts@1
+  displayName: 'Upload Logs'
+  condition: always()
+  inputs:
+    PathtoPublish: '$(Backup.Root)/logs'
+    ArtifactName: 'Logs-$(Build.BuildNumber)'
 ```
 
 ### 3. Verify Prerequisites
 
-- [ ] .NET 9 runtime installed
+- [ ] Extension installed in your Azure DevOps organization
+- [ ] Variable group **"ADO Backup Restore"** exists and is linked to the pipeline
+- [ ] `Backup.LicenseKey` secret variable is set (see [License Setup](./getting-started.md#license-setup))
 - [ ] Valid PAT token with correct scopes
-- [ ] Sufficient disk space
-- [ ] Network connectivity to Azure DevOps
-- [ ] Valid license key
+- [ ] Sufficient disk space on the build agent
+- [ ] Network connectivity from the agent to Azure DevOps
 
 ### 4. Test Connectivity
 
 ```powershell
-# Test connectivity to Azure DevOps
+# Run on the build agent to test connectivity
 Test-NetConnection dev.azure.com -Port 443
-```
-
-### 5. Validate Configuration
-
-```bash
-# Test with minimal command
-adobackup.exe --version
-
-# Validate license
-adobackup.exe license-validate -k "your-license-key"
 ```
 
 ---
@@ -191,9 +192,7 @@ New-Item -ItemType Directory -Path "D:\ADOBackups" -Force
 ```
 
 **3. Check license:**
-```bash
-adobackup.exe license-validate -k "your-license-key"
-```
+Verify `ADOBACKUP_LICENSE_KEY` is set in the task's `env` block and `Backup.LicenseKey` is a valid secret in your variable group.
 
 ### Issue: Partial Backup Completion
 
@@ -751,97 +750,60 @@ License validation failed: Invalid license key
 ```
 
 **Causes:**
-1. Incorrect license key
-2. License key expired
-3. License key for different tenant
-4. License file corrupted
+1. License key not passed as `ADOBACKUP_LICENSE_KEY` environment variable
+2. Incorrect license key (extra spaces or characters)
+3. License key issued for a different Azure DevOps organization
+4. License key expired
 
 **Solutions:**
 
-**1. Verify license key:**
-```bash
-# Check license key is correct (no extra spaces/characters)
-adobackup.exe license-validate -k "your-license-key"
+**1. Verify the `env` block is present on the task:**
+```yaml
+- task: AzureDevOpsBackupTask@0
+  env:
+    ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)  # Required on BOTH backup and restore tasks
+  inputs:
+    Pat: '$(Backup.AdoPat.RO)'
+    BackupRoot: '$(Backup.Root)'
 ```
 
-**2. Re-activate license:**
-```bash
-# Delete old license file
-Remove-Item "license.lic" -Force
+**2. Verify the secret variable is set:**
+- Go to **Pipelines** → **Library** → **ADO Backup Restore**
+- Check that `Backup.LicenseKey` has a value and is marked as **Secret**
+- Verify the variable group is **linked** to your pipeline
 
-# Activate with fresh license
-adobackup.exe license-activate -k "your-license-key"
-```
-
-**3. Check license file location:**
-```bash
-# Specify license file location explicitly
-adobackup.exe license-activate -k "your-license-key" -f "C:\Licenses\ado-backup.lic"
-```
+**3. Check the license is for your organization:**
+The license is issued per **Azure DevOps organization**. Ensure you are using the license key issued for the organization running the pipeline. Visit [easyadobackup.com](https://easyadobackup.com/) for trial and production licenses.
 
 **4. Contact support:**
-If issue persists, contact Lamdat support with:
-- License key (partial, last 4 characters)
-- Error message
-- Organization URL
-
-### Issue: License Works on One Server but Not Another
-
-**Cause:**
-License may be tied to specific server/tenant.
-
-**Solutions:**
-
-**1. Check license restrictions:**
-```bash
-adobackup.exe license-validate -k "your-license-key" -v
-```
-
-**2. Request multi-server license:**
-Contact Lamdat for licensing options supporting multiple servers.
-
-**3. Copy license file:**
-```bash
-# Copy activated license to other servers
-Copy-Item "license.lic" "\\server2\app\license.lic"
-```
+If the issue persists, visit [easyadobackup.com](https://easyadobackup.com/) with:
+- Your Azure DevOps organization URL
+- The error message from the pipeline logs
 
 ---
 
 ## Pipeline Integration Issues
 
-### Issue: Pipeline Can't Find adobackup.exe
+### Issue: Task Not Found in Pipeline
 
 **Error Message:**
 ```
-'adobackup.exe' is not recognized as an internal or external command
+Task 'AzureDevOpsBackupTask' not found
 ```
 
 **Causes:**
-1. Utility not installed on build agent
-2. Incorrect path
-3. Extension not installed
+1. Extension not installed in the Azure DevOps organization
+2. Extension not enabled for the project
 
 **Solutions:**
 
-**1. Install extension:**
-Ensure "Azure DevOps Backup Task" extension is installed in organization.
+**1. Install the extension:**
+Install the **Azure DevOps Backup & Restore** extension from the Visual Studio Marketplace into your organization.
 
-**2. Check agent has .NET 9:**
+**2. Verify the task name and version:**
 ```yaml
-steps:
-  - task: UseDotNet@2
-    displayName: 'Install .NET 9'
-    inputs:
-      packageType: 'runtime'
-      version: '9.0.x'
-```
-
-**3. Use full path:**
-```yaml
-- script: |
-    "C:\Tools\adobackup\adobackup.exe" backup-all -v
-  displayName: 'Run Backup'
+- task: AzureDevOpsBackupTask@0   # Backup
+- task: AzureDevOpsRestoreTask@0  # Restore
 ```
 
 ### Issue: Pipeline Timeout
@@ -977,12 +939,12 @@ If your issue isn't covered here:
 
 1. **Check logs:** Review `{BackupRoot}/logs/` with `-v` flag
 2. **Search FAQ:** See [FAQ](./faq.md) for common questions
-3. **Review documentation:** Check [Command Reference](./command-reference.md)
-4. **Contact support:** Email support@lamdat.com with:
+3. **Review documentation:** Check [Pipeline Integration Guide](./pipeline-integration.md)
+4. **Contact support:** Visit [easyadobackup.com](https://easyadobackup.com/) with:
    - Detailed error description
-   - Log files
-   - Command used
-   - Environment details (OS, .NET version, organization size)
+   - Log files from `{BackupRoot}/logs/`
+   - Pipeline task inputs used (with sensitive data redacted)
+   - Environment details (OS, agent version, organization size)
 
 ---
 

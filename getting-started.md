@@ -1,404 +1,241 @@
-# Getting Started with Azure DevOps Backup & Restore CLI
+# Getting Started with Azure DevOps Backup & Restore
 
-This guide covers the command-line interface (CLI) for Azure DevOps Backup & Restore.
-
-> **💡 Recommended Approach:** For most users, we recommend using the **Azure Pipeline Tasks** instead of the CLI for automated, scheduled backups. See the [Pipeline Integration Guide](./pipeline-integration.md) to get started with pipeline tasks.
->
-> **Use this CLI guide if you need:**
-> - Manual backup/restore operations
-> - Scripting outside of Azure Pipelines
-> - On-demand operations without pipeline setup
+This guide walks you through setting up your first automated backup using the **Azure DevOps Backup & Restore** pipeline tasks.
 
 ## Table of Contents
 
 1. [Prerequisites](#prerequisites)
-2. [Installation](#installation)
-3. [Configuration](#configuration)
-4. [Your First Backup](#your-first-backup)
-5. [Your First Restore](#your-first-restore)
-6. [Next Steps](#next-steps)
+2. [License Setup](#license-setup)
+3. [Install the Extension](#install-the-extension)
+4. [Create Variable Group](#create-variable-group)
+5. [Your First Backup Pipeline](#your-first-backup-pipeline)
+6. [Your First Restore Pipeline](#your-first-restore-pipeline)
+7. [Next Steps](#next-steps)
 
 ## Prerequisites
 
-### 1. .NET 9 Runtime
+- An Azure DevOps organization
+- Azure Pipelines enabled in your project
+- A Personal Access Token (PAT) with appropriate permissions (see below)
+- A license key (see [License Setup](#license-setup))
 
-Download and install the .NET 9 Runtime from [Microsoft .NET Downloads](https://dotnet.microsoft.com/download/dotnet/9.0).
+### PAT Permissions
 
-Verify installation:
-```bash
-dotnet --version
-```
-
-### 2. Azure DevOps Personal Access Token (PAT)
-
-Create a PAT token with the following scopes:
-
-**For Backup (Read-only operations):**
+**For Backup (read-only operations):**
 - Code: Read
 - Build: Read
 - Work Items: Read
 - Variable Groups: Read
 - Project and Team: Read
-- Service Connections: Read (for service connections backup)
+- Service Connections: Read
 
-**For Restore (Read/Write operations):**
+**For Restore (read/write operations):**
 - Code: Read & Write
 - Build: Read & Write
 - Work Items: Read & Write
 - Variable Groups: Read & Write
 - Project and Team: Read & Write
-- Service Connections: Read & Write (for service connections restore)
+- Service Connections: Read & Write
 
 **To create a PAT:**
 1. Go to Azure DevOps
-2. Click on User Settings (top right) ? Personal Access Tokens
-3. Click "New Token"
-4. Set expiration and select scopes
+2. Click on User Settings (top right) → Personal Access Tokens
+3. Click **New Token**
+4. Set expiration and select the required scopes
 5. Copy and save the token securely
 
-### 3. License Key
+## License Setup
 
-Contact Lamdat to obtain a license key for production use.
+The license is issued per **Azure DevOps organization**.
 
-## Installation
+- **Trial license:** A trial license is available — visit [easyadobackup.com](https://easyadobackup.com/) to request one.
+- **Production license:** Purchase a production license at [easyadobackup.com](https://easyadobackup.com/).
 
-### Option 1: Download Release Package
+Once you receive your license key, store it as a **secret variable** in your variable group (see [Create Variable Group](#create-variable-group) below).
 
-1. Download the latest release from the releases page
-2. Extract to your desired location (e.g., `C:\Tools\adobackup`)
-3. Add the installation directory to your PATH (optional)
+The license key must be passed as the `ADOBACKUP_LICENSE_KEY` environment variable to **both** the backup task and the restore task:
 
-### Option 2: Build from Source
-
-```bash
-git clone https://dev.azure.com/Lamdat/Lamdat/_git/ado-backup-restore
-cd ado-backup-restore
-dotnet build ADOBackupRestore.CLI/Lamdat.ADOBackupRestore.CLI.csproj -c Release
+```yaml
+- task: AzureDevOpsBackupTask@0
+  env:
+    ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)  # Pass secret directly as environment variable
+  inputs:
+    # ... task inputs
 ```
 
-The built executable will be in `ADOBackupRestore.CLI/bin/Release/net9.0/`
+> **Important:** Pass `ADOBACKUP_LICENSE_KEY` as an `env` variable (not just as a task input) to each backup and restore task. This is the required way to pass the license secret securely.
 
-## Configuration
+## Install the Extension
 
-### Activate License
+Install the **Azure DevOps Backup & Restore** extension from the Visual Studio Marketplace into your Azure DevOps organization.
 
-Before using the utility, activate your license:
+This provides two pipeline tasks:
+- **AzureDevOpsBackupTask** — for backup operations
+- **AzureDevOpsRestoreTask** — for restore operations
 
-```bash
-adobackup.exe license-activate -k "your-license-key-here"
+## Create Variable Group
+
+1. In your Azure DevOps project, go to **Pipelines** → **Library**
+2. Click **+ Variable group**
+3. Name it **"ADO Backup Restore"**
+4. Add the following variables:
+
+| Variable Name | Description | Secret |
+|---------------|-------------|--------|
+| `Backup.LicenseKey` | Your license key (issued per Azure DevOps organization) | 🔒 Yes |
+| `Backup.AdoPat.RO` | Read-only PAT for backup operations | 🔒 Yes |
+| `Backup.AdoPat.RW` | Read-write PAT for restore operations | 🔒 Yes |
+| `Backup.Root` | Path where backups will be stored (e.g., `C:\ADOBackups`) | ❌ No |
+
+5. Mark the PAT and license variables as **Secret**
+6. Click **Save**
+
+## Your First Backup Pipeline
+
+Create a new pipeline file (e.g., `azure-pipelines/backup.yml`):
+
+```yaml
+name: BackupPipeline_$(Date:yyyyMMdd)$(Rev:.r)
+
+trigger: none
+
+schedules:
+  - cron: "0 2 * * *"  # Run daily at 2 AM
+    displayName: Daily Backup
+    branches:
+      include:
+        - main
+    always: true
+
+pool:
+  name: 'Default'  # Use your self-hosted agent pool
+
+variables:
+  - group: 'ADO Backup Restore'
+
+jobs:
+- job: BackupJob
+  displayName: 'Backup Azure DevOps'
+  timeoutInMinutes: 720  # 12 hours
+
+  steps:
+    - checkout: self
+      persistCredentials: true
+
+    - task: AzureDevOpsBackupTask@0
+      displayName: 'Perform Incremental Backup'
+      env:
+        ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)  # Pass secret directly as environment variable
+      inputs:
+        Pat: '$(Backup.AdoPat.RO)'
+        BackupRoot: '$(Backup.Root)'
+        Projects: '*'  # All projects, or specify comma-separated project names
+        Verbose: true
+        BackupMode: 'Incremental'
+        BackupAll: true
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Upload Backup Logs'
+      condition: always()
+      inputs:
+        PathtoPublish: '$(Backup.Root)/logs'
+        ArtifactName: 'BackupLogs-$(Build.BuildNumber)'
+        publishLocation: 'Container'
+      continueOnError: true
 ```
 
-This creates a `license.lic` file in the application directory.
+**Schedule guidance:**
+- Daily at 2 AM: `"0 2 * * *"`
+- Sundays at 1 AM: `"0 1 * * 0"`
+- Weekdays at 3 AM: `"0 3 * * 1-5"`
 
-### Validate License
+## Your First Restore Pipeline
 
-Verify your license is active:
+Create a restore pipeline file (e.g., `azure-pipelines/restore.yml`):
 
-```bash
-adobackup.exe license-validate -k "your-license-key-here"
+```yaml
+name: RestorePipeline_$(Date:yyyyMMdd)$(Rev:.r)
+
+trigger: none
+
+parameters:
+  - name: 'projectsToRestore'
+    displayName: 'Projects to Restore'
+    type: string
+    default: 'MyProject'
+
+  - name: 'targetProject'
+    displayName: 'Target Project Name'
+    type: string
+    default: '<same>'
+
+  - name: 'dryRun'
+    displayName: 'Dry Run (Preview Changes)'
+    type: boolean
+    default: true
+
+pool:
+  name: 'Default'  # Use your self-hosted agent pool
+
+variables:
+  - group: 'ADO Backup Restore'
+
+jobs:
+- job: RestoreJob
+  displayName: 'Restore Azure DevOps'
+
+  steps:
+    - checkout: self
+      persistCredentials: true
+
+    - task: AzureDevOpsRestoreTask@0
+      displayName: 'Perform Azure DevOps Restore'
+      env:
+        ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)  # Pass secret directly as environment variable
+      inputs:
+        Pat: '$(Backup.AdoPat.RW)'
+        BackupRoot: '$(Backup.Root)'
+        Projects: '${{ parameters.projectsToRestore }}'
+        TargetProject: '${{ parameters.targetProject }}'
+        DryRun: ${{ parameters.dryRun }}
+        Verbose: true
+        RestoreAll: true
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Upload Restore Logs'
+      condition: always()
+      inputs:
+        PathtoPublish: '$(Backup.Root)/logs'
+        ArtifactName: 'RestoreLogs-$(Build.BuildNumber)'
+        publishLocation: 'Container'
+      continueOnError: true
 ```
 
-### Configuration Methods
-
-You can configure the utility using:
-
-1. **Command-line arguments** (recommended for CI/CD)
-2. **Configuration file** (recommended for local use)
-3. **Environment variables**
-
-#### Configuration File (appsettings.json)
-
-Create an `appsettings.json` file in the application directory:
-
-```json
-{
-  "Settings": {
-    "OrganizationUrl": "https://dev.azure.com/yourorg",
-    "Pat": "your-pat-token",
-    "BackupRoot": "C:\\ADOBackups",
-    "MaxParallelism": 4
-  }
-}
-```
-
-⚠️ **Security Note:** Never commit PAT tokens to source control. Use environment variables or secure vaults for CI/CD pipelines.
-
-## Your First Backup
-
-### Step 1: Test Connection
-
-Verify connectivity to Azure DevOps:
-
-```bash
-adobackup.exe backup-all --help
-```
-
-### Step 2: Perform a Test Backup
-
-Start with a single project:
-
-```bash
-adobackup.exe backup-all ^
-  --OrganizationUrl "https://dev.azure.com/yourorg" ^
-  --Pat "your-pat-token" ^
-  --BackupRoot "C:\ADOBackups" ^
-  -p "TestProject" ^
-  -v
-```
-
-**Command breakdown:**
-- `backup-all` - Backup all resource types
-- `--OrganizationUrl` - Your Azure DevOps organization URL
-- `--Pat` - Your Personal Access Token
-- `--BackupRoot` - Directory where backups will be saved
-- `-p "TestProject"` - Specific project to backup (optional)
-- `-v` - Verbose output for detailed logging
-
-### Step 3: Verify Backup
-
-Check the backup directory:
-
-```bash
-C:\ADOBackups\
-  └── TestProject\
-      ├── git\
-      ├── pullrequests\
-      ├── builds\
-      ├── serviceconnections\
-      ├── workitems\
-      ├── variables\
-      └── queries\
-  ├── metadata\
-  └── logs\
-```
-
-### Step 4: Full Organization Backup
-
-Once you've verified a test backup works, perform a full backup:
-
-```bash
-adobackup.exe backup-all ^
-  --OrganizationUrl "https://dev.azure.com/yourorg" ^
-  --Pat "your-pat-token" ^
-  --BackupRoot "C:\ADOBackups" ^
-  -v
-```
-
-This will backup all projects and all resource types.
-
-### Step 5: Incremental Backup
-
-For subsequent backups, use incremental mode to only backup new/changed data:
-
-```bash
-adobackup.exe backup-all ^
-  --OrganizationUrl "https://dev.azure.com/yourorg" ^
-  --Pat "your-pat-token" ^
-  --BackupRoot "C:\ADOBackups" ^
-  -i ^
-  -v
-```
-
-The `-i` flag enables incremental mode, which:
-- Backs up work items created/modified since last backup
-- Backs up builds from the last backup date
-- Always backs up latest definitions
-
-## Your First Restore
-
-### Step 1: Dry Run
-
-Always start with a dry run to preview changes:
-
-```bash
-adobackup.exe restore-all ^
-  --OrganizationUrl "https://dev.azure.com/yourorg" ^
-  --Pat "your-pat-token" ^
-  --BackupRoot "C:\ADOBackups" ^
-  -p "TestProject" ^
-  --dry-run ^
-  -v
-```
-
-The `--dry-run` flag shows what would be restored without making any changes.
-
-### Step 2: Restore to Same Project
-
-Restore the test project back to itself:
-
-```bash
-adobackup.exe restore-all ^
-  --OrganizationUrl "https://dev.azure.com/yourorg" ^
-  --Pat "your-pat-token" ^
-  --BackupRoot "C:\ADOBackups" ^
-  -p "TestProject" ^
-  -v
-```
-
-⚠️ **Warning:** This will overwrite existing resources.
-
-### Step 3: Restore to Different Project
-
-Clone the project to a new project:
-
-```bash
-adobackup.exe restore-all ^
-  --OrganizationUrl "https://dev.azure.com/yourorg" ^
-  --Pat "your-pat-token" ^
-  --BackupRoot "C:\ADOBackups" ^
-  -p "TestProject" ^
-  --target-project "TestProject-Copy" ^
-  -v
-```
-
-The `--target-project` must exist in the target organization before running the restore.
-
-### Step 4: Restore to Different Organization
-
-Migrate a project to a different Azure DevOps organization:
-
-```bash
-adobackup.exe restore-all ^
-  --OrganizationUrl "https://dev.azure.com/yourorg" ^
-  --Pat "your-source-pat" ^
-  --BackupRoot "C:\ADOBackups" ^
-  -p "TestProject" ^
-  --target-org "https://dev.azure.com/targetorg" ^
-  --target-pat "your-target-pat" ^
-  --target-project "MigratedProject" ^
-  -v
-```
-
-### Step 5: Selective Restore
-
-Restore only specific resource types:
-
-**Restore only Git repositories:**
-```bash
-adobackup.exe restore-all ^
-  --BackupRoot "C:\ADOBackups" ^
-  -p "TestProject" ^
-  --include-git ^
-  -v
-```
-
-**Restore only build definitions:**
-```bash
-adobackup.exe restore-all ^
-  --BackupRoot "C:\ADOBackups" ^
-  -p "TestProject" ^
-  --include-builds ^
-  -v
-```
+> **Tip:** Always start with `DryRun: true` to preview what will be restored before making any changes.
 
 ## ⚠️ Limitations & Known Issues
 
-Understanding the limitations helps you plan your backup and restore strategy effectively. Most limitations are due to Azure DevOps API constraints or Git protocol requirements.
+Understanding limitations helps you plan your backup and restore strategy. See the full [Limitations Guide](./LIMITATIONS.md) for details.
 
-### API & Platform Limitations
+### Key limitations
 
-| Component | Limitation | Impact | Workaround/Notes |
-|-----------|-----------|--------|------------------|
-| **Work Items** | Restores to same project only | Work items restored with same IDs | Deleted work items are recreated with new IDs if needed |
-| **Work Items** | Restore updates existing work items without adding comments | No audit trail of restore operation | Work item history shows field changes but not restore event |
-| **Work Items** | Incremental backup uses daily granularity, not exact timestamp | May backup some items twice if run multiple times per day | Incremental mode tracks last backup date (YYYY-MM-DD), not time |
-| **Work Items** | Deleted work items are recreated with new IDs during restore | Original IDs cannot be preserved | Links and relationships are recreated with new IDs |
-| **Queries** | Query definitions restored/updated as-is | Existing queries are updated with backup data | Verify area paths and iteration paths exist in project before restore |
-| **Pull Requests** | Full PR record is restored (title, description, comments, reviews, status, votes) | Code changes already exist in Git history from merge | PRs are recreated with all discussion and review data |
-| **Pull Requests** | PR IDs preserved only when restoring to same project | Cross-project restore may create new IDs | Work item links in PRs are preserved if work items exist |
-| **Service Connections** | Secrets/credentials are NOT backed up | Credentials will be lost | Must manually re-enter secrets after restore |
-| **Service Connections** | Pipeline authorizations must be reconfigured | Pipelines won't have access until reauthorized | Manually authorize pipelines to use connections after restore |
-| **Git Repositories** | Non-fast-forward pushes fail if remote history diverged | Restore fails if repository changed after backup | See Git-specific limitations below |
-| **Azure DevOps API** | Rate limiting varies by organization tier | Backup may be throttled on high-volume operations | Reduce `MaxParallelism`, space out backups, or contact Microsoft for limit increase |
-| **Build History** | Maximum 100 builds per definition per backup run | Can't backup more than 100 builds in single run | Use `--days` parameter with incremental mode to capture builds over time, build history is kept locally for reference and cannot be restored due to Azure DevOps limitations |
-| **Build Definitions** | Existing definitions are **updated** during restore | Definition configuration is overwritten | Review changes before restore; use `--dry-run` to preview |
-| **Variable Groups** | Passwords/secrets are NOT backed up | Secret values will be lost | Document secret variables separately; re-enter after restore |
-| **Variable Groups** | Existing variable groups are **updated** during restore | Variable group values are overwritten (except secrets) | Secrets must be manually re-entered after restore |
-
-### Git-Specific Limitations
-
-| Scenario | Issue | Error Message | Solution |
-|----------|-------|---------------|----------|
-| **Diverged History** | Remote repository has commits not in backup | `NonFastForwardException: cannot push because a reference that you are trying to update on the remote contains commits that are not present locally` | **Option 1:** Force push (loses remote commits)<br>**Option 2:** Manually merge changes<br>**Option 3:** Delete remote repo and restore fresh |
-| **Branch Protection** | Branch policies prevent force push | Push fails due to branch policies | Temporarily disable branch policies during restore |
-| **Large Repositories** | Git clone/push timeout on repos >50GB | Operation timeout or memory errors | Increase timeout, use `--MaxParallelism 1` for large repos |
-| **LFS Objects** | Git LFS files require separate authentication | LFS files may not restore correctly | Ensure LFS credentials are configured |
-
-### Security Limitations
-
-| Feature | Limitation | Recommendation |
-|---------|-----------|----------------|
-| **Secret Variables** | Pipeline variable secrets are NOT backed up | Document secrets separately; use Azure Key Vault |
-| **Service Connection Secrets** | Service connection credentials/secrets are NOT backed up | Document secrets separately; re-enter after restore |
-| **PAT Tokens** | PAT tokens used in pipelines are NOT backed up | Re-configure service connections after restore |
-| **SSH Keys** | Git SSH keys are NOT backed up | Re-upload SSH keys to target organization |
-
-### Restore Behavior & Important Notes
-
-| Component | Behavior | Important Notes |
-|-----------|----------|-----------------|
-| **Work Items** | Updates existing work item if found by ID | No comments added to work item history about restore operation |
-| **Work Items** | Creates new work item if original was deleted | New ID assigned; relationships recreated |
-| **Build Definitions** | **Updates** existing definition if found by ID | Definition is updated with backup data |
-| **Build Definitions** | **Creates** new definition if doesn't exist | New definition created with original configuration |
-| **Variable Groups** | **Updates** existing group if found by name | Group is updated with backup data (except secrets) |
-| **Variable Groups** | **Creates** new group if doesn't exist | New variable group created |
-| **Variable Groups** | Secret values are **NOT** restored | Passwords/secrets are not backed up; must be re-entered manually |
-| **Service Connections** | **Updates** existing connection if found by name | Connection metadata updated (except secrets) |
-| **Service Connections** | Secret values/credentials are **NOT** restored | Must manually re-enter passwords, keys, certificates after restore |
-| **Service Connections** | Pipeline authorizations are **NOT** restored | Must manually authorize pipelines to use connections |
-| **Pull Requests** | **Restores** complete PR with title, description, comments, reviews, status, votes | Code changes already in Git from original merge |
-| **Pull Requests** | Work item links preserved if work items exist | Broken links if work items not restored |
-| **Pull Requests** | PR IDs preserved when restoring to same project | Cross-project restore may assign new IDs |
-| **Queries** | **Updates** existing query if found by ID | Query definition is overwritten with backup data |
-| **Queries** | **Creates** new query if doesn't exist | New query created with original structure |
-| **Git Repositories** | Uses force push by default | **Warning:** Overwrites remote history; ensure backup is correct version |
-
-
+| Component | Limitation |
+|-----------|-----------|
+| **Service Connections** | Secrets/credentials are NOT backed up — must be re-entered after restore |
+| **Variable Groups** | Secret values are NOT backed up |
+| **Build History** | Maximum 100 builds per definition per backup run |
+| **Git Repositories** | Non-fast-forward pushes fail if remote history has diverged |
 
 ## Next Steps
 
-Now that you've completed your first CLI backup and restore:
-
-### Recommended: Automate with Pipeline Tasks
-
-**[Set up Pipeline Integration](./pipeline-integration.md)** - Automate backups with Azure Pipeline tasks (recommended for production)
-
-### CLI Resources
-
-1. **[Command Reference](./command-reference.md)** - Complete CLI command documentation
-2. **[Review Best Practices](./best-practices.md)** - Optimize your backup strategy
-3. **[Explore Use Cases](./use-cases.md)** - Common scenarios and solutions
-
-## Common Issues
-
-### Issue: "Failed to authenticate"
-
-**Solution:** Verify your PAT token has the required permissions and hasn't expired.
-
-### Issue: "Access denied" during restore
-
-**Solution:** Ensure your PAT token has write permissions for restore operations.
-
-### Issue: Backup is very slow
-
-**Solution:** Increase parallelism with `--MaxParallelism 8` (default is 4).
-
-### Issue: Out of disk space
-
-**Solution:** 
-- Use incremental mode (`-i`)
-- Clean up old backups
-- Backup specific projects/resources instead of everything
-
-For more troubleshooting, see the [Troubleshooting Guide](./troubleshooting.md).
+- **[Pipeline Integration Guide](./pipeline-integration.md)** — Complete setup guide with advanced examples
+- **[Best Practices](./best-practices.md)** — Optimize your backup strategy
+- **[Use Cases](./use-cases.md)** — Common scenarios and solutions
+- **[Troubleshooting](./troubleshooting.md)** — Common issues and solutions
+- **[FAQ](./faq.md)** — Frequently asked questions
 
 ## Getting Help
 
 - Review the [FAQ](./faq.md)
 - Check the [Troubleshooting Guide](./troubleshooting.md)
-- Contact support: support@lamdat.com
-
----
-
-**Next:** [Command Reference →](./command-reference.md)
+- Visit [easyadobackup.com](https://easyadobackup.com/) for support

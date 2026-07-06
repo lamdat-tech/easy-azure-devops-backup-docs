@@ -7,9 +7,10 @@ Real-world scenarios and solutions using the Azure DevOps Backup & Restore utili
 ## Table of Contents
 
 1. [Disaster Recovery](#disaster-recovery)
-2. [Compliance and Auditing](#compliance-and-auditing)
-3. [Continuous Backup Strategy](#continuous-backup-strategy)
-4. [Selective Data Management](#selective-data-management)
+2. [Organization Migration](#organization-migration)
+3. [Compliance and Auditing](#compliance-and-auditing)
+4. [Continuous Backup Strategy](#continuous-backup-strategy)
+5. [Selective Data Management](#selective-data-management)
 
 ---
 
@@ -104,7 +105,75 @@ adobackup.exe restore-all \
 - Other projects unaffected
 - Minimal downtime
 
+---
 
+## Organization Migration
+
+Migrate projects and resources to a different Azure DevOps organization.
+
+### Scenario: Cross-Organization Work Items Migration
+
+**Context:** Migrating a project to a new Azure DevOps organization with full work items history and all parent-child/link relationships preserved.
+
+**Requirements:**
+- All work items migrated with history
+- Parent-child and link relationships preserved across organizations
+- Two-phase restore ensures correct ID remapping
+
+**Solution:**
+
+**Step 1: Backup work items from source organization**
+```bash
+adobackup.exe backup-all ^
+  --OrganizationUrl "https://dev.azure.com/sourceorg" ^
+  --Pat "source-pat-token" ^
+  --BackupRoot "C:\ADOBackups" ^
+  --include-workitems ^
+  -p "SourceProject" ^
+  -v
+```
+
+**Step 2: Dry run — preview the cross-org restore**
+```bash
+adobackup.exe workitems-restore ^
+  --OrganizationUrl "https://dev.azure.com/sourceorg" ^
+  --Pat "source-pat-token" ^
+  --BackupRoot "C:\ADOBackups" ^
+  -p "SourceProject" ^
+  --target-org "https://dev.azure.com/targetorg" ^
+  --target-pat "target-pat-token" ^
+  --target-project "TargetProject" ^
+  --dry-run ^
+  -v
+```
+
+**Step 3: Execute cross-org work items restore**
+```bash
+adobackup.exe workitems-restore ^
+  --OrganizationUrl "https://dev.azure.com/sourceorg" ^
+  --Pat "source-pat-token" ^
+  --BackupRoot "C:\ADOBackups" ^
+  -p "SourceProject" ^
+  --target-org "https://dev.azure.com/targetorg" ^
+  --target-pat "target-pat-token" ^
+  --target-project "TargetProject" ^
+  -v
+```
+
+**How the two-phase restore works:**
+1. **Phase 1:** Creates all work items in the target organization with new IDs assigned by Azure DevOps and builds a source-to-target ID mapping file (`.metadata/id-mapping.json`).
+2. **Phase 2:** Relinks all relations, parent-child links, and references using the new target IDs from the mapping file.
+
+**Prerequisites:**
+- Target project must exist in the target organization before running the restore
+- Specify exactly one source project with `-p` when using `--target-org` or `--target-project`
+- Target PAT must have Work Items (Read & Write) permission
+
+**Expected Outcome:**
+- All work items recreated in the target organization
+- Work item IDs change (Azure DevOps assigns new IDs in the target)
+- All parent-child relationships and links preserved via ID mapping
+- Idempotent — safe to re-run; already-migrated items are skipped
 
 ---
 
@@ -482,6 +551,242 @@ adobackup.exe backup-all \
 ## Summary Matrix
 
 | Use Case | Frequency | Backup Mode | Resources | Complexity | Warning Behavior |
+|----------|-----------|-------------|-----------|------------|------------------|
+| Disaster Recovery | Daily | Incremental | All | Medium | Warning (default) |
+| Compliance Archival | Monthly | Full | All | Medium | Error (strict) |
+| Continuous Backup | Every 4h | Incremental | Tiered | High | Warning (default) |
+| Selective Backup | Daily | Incremental | Critical only | Medium | Warning (default) |
+| Partial Failure Handling | Varies | Varies | Varies | Low | Error/Warning/Ignore |
+
+
+---
+
+## Test Plans Backup and Restore
+
+### Scenario 1: Backup Test Plans with Last 90 Days of Runs
+
+**Context:** You need to backup test plans for compliance, preserving the last 3 months of test execution history.
+
+**Requirements:**
+- Backup all test plans and suites
+- Include last 90 days of test runs (default)
+- Preserve hierarchical suite structure
+
+**Solution:**
+
+```bash
+# Backup test plans with default 90-day test run history
+adobackup.exe testplans-backup \
+  --OrganizationUrl "https://dev.azure.com/yourorg" \
+  --Pat "your-pat" \
+  --BackupRoot "D:\ADOBackups" \
+  -v
+
+# Backup specific projects only
+adobackup.exe testplans-backup \
+  -p "Project1,Project2" \
+  --test-runs-days 90 \
+  -v
+```
+
+**Expected Outcome:**
+- All test plans and suites backed up hierarchically
+- Test runs from last 90 days included
+- Test results and metadata preserved
+- Backup folder: `{BackupRoot}/test-plans/{project}/{planId}/`
+
+---
+
+### Scenario 2: Full Test History Backup (Compliance/Archival)
+
+**Context:** Regulatory compliance requires complete test execution history for audit purposes.
+
+**Requirements:**
+- Backup all test runs regardless of date
+- Complete test result history
+- Suitable for long-term archival
+
+**Solution:**
+
+```bash
+# Backup all test runs (entire history)
+adobackup.exe testplans-backup \
+  --test-runs-all \
+  -v
+
+# Alternative: Specify longer date range (e.g., 2 years)
+adobackup.exe testplans-backup \
+  --test-runs-days 730 \
+  -v
+```
+
+**Expected Outcome:**
+- All test plans and suites backed up
+- **Complete** test run history (all dates)
+- Longer execution time (may take hours for extensive history)
+- Larger storage requirements
+
+**Recommendation:** Use for monthly/quarterly compliance backups, not daily operations.
+
+---
+
+### Scenario 3: Cross-Project Test Plan Migration
+
+**Context:** You're merging two projects and need to migrate test plans from "OldProject" to "NewProject".
+
+**Requirements:**
+- Migrate test plans and suites
+- Test case work items already exist in target
+- Preserve suite hierarchy
+
+**Solution:**
+
+**Step 1: Backup source project test plans**
+```bash
+adobackup.exe testplans-backup \
+  -p "OldProject" \
+  -v
+```
+
+**Step 2: Dry run restore to preview**
+```bash
+adobackup.exe testplans-restore \
+  -p "OldProject" \
+  --target-project "NewProject" \
+  --dry-run \
+  -v
+```
+
+**Step 3: Restore to target project**
+```bash
+adobackup.exe testplans-restore \
+  -p "OldProject" \
+  --target-project "NewProject" \
+  -v
+```
+
+**Expected Outcome:**
+- Test plans created in NewProject with new IDs
+- Suite hierarchy preserved
+- Test cases associated (if work items exist)
+- ID mapping saved to `.metadata/test-plan-id-mapping.json`
+- Missing test cases skipped with warnings
+
+**Important:** Ensure test case work items are migrated to NewProject **before** restoring test plans.
+
+---
+
+### Scenario 4: Restore Test Plans Without Test Runs
+
+**Context:** You want to restore test plan structure but not historical test execution data.
+
+**Requirements:**
+- Restore test plans and suites only
+- Skip test runs (save time and storage)
+- Preserve hierarchical structure
+
+**Solution:**
+
+```bash
+# Restore plans and suites only (default behavior)
+adobackup.exe testplans-restore \
+  -p "ProjectA" \
+  -v
+
+# Explicitly without runs
+adobackup.exe testplans-restore \
+  -p "ProjectA" \
+  --include-runs false \
+  -v
+```
+
+**Expected Outcome:**
+- Test plans and suites restored
+- Test case associations created
+- **No test runs restored** (faster execution)
+- Suitable for project cloning or structure migration
+
+---
+
+### Scenario 5: Restore Test Plans with Test Runs
+
+**Context:** You need complete test plan restoration including historical execution data.
+
+**Requirements:**
+- Restore test plans, suites, and runs
+- Preserve execution history
+- Maintain test result data
+
+**Solution:**
+
+```bash
+# Restore plans, suites, and runs
+adobackup.exe testplans-restore \
+  -p "ProjectA" \
+  --include-runs \
+  -v
+
+# Cross-project restore with runs
+adobackup.exe testplans-restore \
+  -p "SourceProject" \
+  --target-project "TargetProject" \
+  --include-runs \
+  -v
+```
+
+**Expected Outcome:**
+- Test plans and suites restored
+- Test runs restored with original metadata
+- Test results linked to new plan/suite IDs
+- Execution history preserved
+
+**Note:** Test run IDs are remapped to target project IDs via ID mapping files.
+
+---
+
+### Scenario 6: Handling Suite Type Conversions
+
+**Context:** Restoring test plans to a target project where requirement/query dependencies are missing.
+
+**Challenge:**
+- Source has requirement-based suites linked to work item #5678
+- Target project doesn't have work item #5678
+- Source has query-based suites using query "Regression Bugs"
+- Target project doesn't have that query
+
+**Automatic Solution:**
+
+The restore process handles this automatically:
+
+```bash
+adobackup.exe testplans-restore \
+  -p "SourceProject" \
+  --target-project "TargetProject" \
+  -v
+```
+
+**What Happens:**
+1. **Requirement-Based Suite** → Converts to **Static Suite** (logs warning)
+2. **Query-Based Suite** → Converts to **Static Suite** (logs warning)
+3. **Test cases** are associated as static entries
+4. **Hierarchy preserved** exactly as before
+
+**Console Output:**
+```
+⚠️  WARNING: Suite "Requirements Suite" (requirement-based) → converted to static suite (requirement work item #5678 not found)
+⚠️  WARNING: Suite "Bug Query Suite" (query-based) → converted to static suite (query "Regression Bugs" not found)
+✅ Test Suite "Requirements Suite": 12/15 test cases restored (3 skipped - work items not found)
+```
+
+**Expected Outcome:**
+- Test plans fully restored despite missing dependencies
+- Suite structure intact (as static suites)
+- Warnings logged for audit trail
+- No manual intervention required
+
+---
+
+---
 |----------|-----------|-------------|-----------|------------|------------------|
 | Disaster Recovery | Daily | Incremental | All | Medium | Warning (default) |
 | Compliance Archival | Monthly | Full | All | Medium | Error (strict) |

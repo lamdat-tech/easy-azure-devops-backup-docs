@@ -43,6 +43,11 @@ parameters:
     type: boolean
     default: false
   
+  - name: 'includeReleases'
+    displayName: 'Include Release Definitions'
+    type: boolean
+    default: false
+  
   - name: 'includeWorkItems'
     displayName: 'Include Work Items'
     type: boolean
@@ -67,7 +72,42 @@ parameters:
     displayName: 'Include Pull Requests'
     type: boolean
     default: false
-  
+
+  - name: 'includeTaskGroups'
+    displayName: 'Include Task Groups'
+    type: boolean
+    default: false
+
+  - name: 'includeBoards'
+    displayName: 'Include Boards'
+    type: boolean
+    default: false
+
+  - name: 'includeDashboards'
+    displayName: 'Include Dashboards'
+    type: boolean
+    default: false
+
+  - name: 'includeWikis'
+    displayName: 'Include Wikis'
+    type: boolean
+    default: false
+
+  - name: 'includeAreasAndIterations'
+    displayName: 'Include Areas & Iterations'
+    type: boolean
+    default: false
+
+  - name: 'includeEnvironments'
+    displayName: 'Include Pipeline Environments'
+    type: boolean
+    default: false
+
+  - name: 'includeTestPlans'
+    displayName: 'Include Test Plans'
+    type: boolean
+    default: false
+
   # Git-specific options
   - name: 'gitRepositories'
     displayName: 'Git Repositories (comma-separated, * = all)'
@@ -89,6 +129,12 @@ parameters:
     displayName: 'Build Definitions (comma-separated, * = all)'
     type: string
     default: '*'  # * = all definitions, or specify comma-separated names
+  
+  # Release-specific options
+  - name: 'releaseDefinitions'
+    displayName: 'Release Definitions (comma-separated, * = all)'
+    type: string
+    default: '*'  # * = all release definitions, or specify comma-separated names
   
   - name: 'serviceConnections'
     displayName: 'Service Connections (comma-separated, * = all)'
@@ -121,6 +167,23 @@ parameters:
     displayName: 'Queries Folder Path (* = all)'
     type: string
     default: '*'  # * = all queries, or specify folder path like 'Shared Queries/Team A'
+
+  # Test Plans-specific options
+  - name: 'testRunsDays'
+    displayName: 'Test Runs - Days to Include (0 = all)'
+    type: number
+    default: 90  # Default: last 90 days, set to 0 for all test runs
+
+  - name: 'includeAllTestRuns'
+    displayName: 'Backup All Test Runs (All History)'
+    type: boolean
+    default: false  # Warning: may take long time for extensive test history
+
+  # Wiki-specific options
+  - name: 'wikiName'
+    displayName: 'Wiki Name (* = all)'
+    type: string
+    default: '*'  # * = all wikis, or specify specific wiki name like 'MyProject.wiki'
 
 trigger: none
 
@@ -162,12 +225,21 @@ jobs:
         BackupAll: ${{ parameters.backupAll }}
         IncludeGit: ${{ parameters.includeGit }}
         IncludeBuilds: ${{ parameters.includeBuilds }}
+        IncludeReleases: ${{ parameters.includeReleases }}
         IncludeWorkItems: ${{ parameters.includeWorkItems }}
         IncludeVariables: ${{ parameters.includeVariables }}
         IncludeQueries: ${{ parameters.includeQueries }}
         IncludeServiceConnections: ${{ parameters.includeServiceConnections }}
         IncludePullRequests: ${{ parameters.includePullRequests }}
-        
+        IncludeTaskGroups: ${{ parameters.includeTaskGroups }}
+        IncludeBoards: ${{ parameters.includeBoards }}
+        IncludeDashboards: ${{ parameters.includeDashboards }}
+        IncludeWikis: ${{ parameters.includeWikis }}
+        IncludeAreasAndIterations: ${{ parameters.includeAreasAndIterations }}
+        IncludeEnvironments: ${{ parameters.includeEnvironments }}
+
+        IncludeTestPlans: ${{ parameters.includeTestPlans }}
+
         # Git-specific options
         GitRepositories: '${{ parameters.gitRepositories }}'
         PullRequestStatus: '${{ parameters.pullRequestStatus }}'
@@ -179,14 +251,28 @@ jobs:
         ${{ if gt(parameters.days, 0) }}:
           Days: '${{ parameters.days }}'
         
+        # Release-specific options
+        ReleaseDefinitions: '${{ parameters.releaseDefinitions }}'
+        
         # Work Items-specific options
         ${{ if gt(parameters.minWorkItemId, 0) }}:
           MinWorkItemId: '${{ parameters.minWorkItemId }}'
         ${{ if gt(parameters.maxWorkItemId, 0) }}:
           MaxWorkItemId: '${{ parameters.maxWorkItemId }}'
-        
+
         # Queries-specific options
         QueriesFolderPath: '${{ parameters.queriesFolderPath }}'
+
+        # Task Groups-specific options
+        TaskGroups: '${{ parameters.taskGroups }}'
+
+        # Wiki-specific options
+        WikiName: '${{ parameters.wikiName }}'
+
+        # Test Plans-specific options
+        ${{ if gt(parameters.testRunsDays, 0) }}:
+          TestRunsDays: '${{ parameters.testRunsDays }}'
+        IncludeAllTestRuns: ${{ parameters.includeAllTestRuns }}
 
     # Upload CLI log files for troubleshooting and audit trail
     - task: PublishBuildArtifacts@1
