@@ -17,115 +17,16 @@ When performing a cross-organization restore:
 
 ## Solution
 
-The `BuildRestoreService` now automatically detects task group references in build definitions and remaps them based on task group names:
+Build definition restore automatically detects task group references and remaps them based on task group names:
 
 ### Process Flow
 
 1. **Fetch task groups** from the target project (with caching to avoid redundant API calls)
 2. **Scan build definition JSON** to find all task references with task group IDs
-3. **Look up task group names** from backup files based on the old IDs
+3. **Look up task group names** from backup files based on the old IDs - the backup stores each task group's name alongside its ID, so the original name can always be recovered from an old ID
 4. **Find matching task groups** in the target project by name
 5. **Replace old IDs with new IDs** in the build definition JSON
 6. **Create/update the build definition** with remapped IDs
-
-### Implementation Details
-
-#### 1. Task Group Caching
-
-Task groups are fetched once per project and cached to avoid redundant API calls:
-
-```csharp
-private readonly Dictionary<string, List<TaskGroupReference>> _cachedTaskGroups = new();
-
-private async Task<List<TaskGroupReference>> GetTaskGroupsWithCacheAsync(string projectName)
-{
-    // Check cache first
-    if (_cachedTaskGroups.TryGetValue(projectName, out var cached))
-        return cached;
-    
-    // Fetch from API and cache
-    var taskGroups = await _adoClient.TaskGroups.GetTaskGroupsAsync(projectName);
-    _cachedTaskGroups[projectName] = taskGroups.ToList();
-    return _cachedTaskGroups[projectName];
-}
-```
-
-#### 2. Task Group Reference Detection
-
-The service recursively scans the build definition JSON to find task references:
-
-```csharp
-private void ScanForTaskGroups(JsonElement element, Dictionary<string, string> taskGroupMapping, ...)
-{
-    // Look for objects with "task" property containing "id"
-    if (element.TryGetProperty("task", out var taskElement))
-    {
-        if (taskElement.TryGetProperty("id", out var taskIdElement))
-        {
-            var oldTaskGroupId = taskIdElement.GetString();
-            
-            // If ID doesn't exist in target, map by name
-            if (!targetTaskGroupsByIdDict.ContainsKey(oldTaskGroupId))
-            {
-                var taskGroupName = GetTaskGroupNameFromBackup(oldTaskGroupId);
-                if (targetTaskGroupsByNameDict.TryGetValue(taskGroupName, out var targetTaskGroup))
-                {
-                    taskGroupMapping[oldTaskGroupId] = targetTaskGroup.Id;
-                }
-            }
-        }
-    }
-    
-    // Recursively scan nested objects and arrays
-    // ...
-}
-```
-
-#### 3. Task Group Name Lookup from Backup
-
-Task group names are retrieved from backup files (stored as `{TaskGroupName}_{TaskGroupId}.json`):
-
-```csharp
-private string? GetTaskGroupNameFromBackup(string taskGroupId)
-{
-    var taskGroupsBackupPath = Path.Combine(_backupRoot, "TaskGroups");
-    
-    // Search all project folders
-    foreach (var projectFolder in Directory.GetDirectories(taskGroupsBackupPath))
-    {
-        var files = Directory.GetFiles(projectFolder, $"*_{taskGroupId}.json");
-        if (files.Length > 0)
-        {
-            var taskGroupJson = File.ReadAllText(files[0]);
-            using var doc = JsonDocument.Parse(taskGroupJson);
-            return doc.RootElement.GetProperty("name").GetString();
-        }
-    }
-    return null;
-}
-```
-
-#### 4. ID Replacement
-
-Once the mapping is built, old task group IDs are replaced with new ones using simple string replacement:
-
-```csharp
-private string UpdateTaskGroupReferences(string definitionJson, ...)
-{
-    var taskGroupMapping = new Dictionary<string, string>();
-    ScanForTaskGroups(doc.RootElement, taskGroupMapping, ...);
-    
-    // Replace all old IDs with new IDs
-    var updatedJson = definitionJson;
-    foreach (var (oldId, newId) in taskGroupMapping)
-    {
-        updatedJson = updatedJson.Replace(oldId, newId, StringComparison.OrdinalIgnoreCase);
-        _logger.Debug("Remapped task group ID: {OldId} -> {NewId}", oldId, newId);
-    }
-    
-    return updatedJson;
-}
-```
 
 ## Usage
 
@@ -179,21 +80,6 @@ Task group remapping is optimized for performance:
 - **Cached API calls**: Task groups are fetched once per project and cached
 - **Batch processing**: All task groups are processed in a single scan
 - **Parallel processing**: Build definitions are still restored in parallel
-
-## Related Components
-
-- `BuildRestoreService.cs` - Main implementation
-- `TaskGroupsClient.cs` - Fetches task groups from Azure DevOps
-- `TaskGroupRestoreService.cs` - Restores task groups
-- `BuildRestoreCommand.cs` - Orchestrates build restore
-
-## Testing
-
-The task group remapping logic is tested in:
-
-- **Unit tests**: `BuildRestoreServiceTests.cs` (if applicable)
-- **End-to-end tests**: `TaskGroupsEndToEndTests.cs`
-- **Manual testing**: Cross-organization restore scenarios
 
 ## Troubleshooting
 

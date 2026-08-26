@@ -178,7 +178,7 @@ The solution consists of several components:
 | Pipeline Variables | ✅ | ✅ |  | Secrets excluded |
 | Queries | ✅ | ✅ | | Shared queries and folders |
 | Areas & Iterations | ✅ | ✅ | | Classification nodes (area paths and iteration paths); additive restore (never deletes); selective restore (areas-only or iterations-only); cross-project and cross-org supported |
-| Test Plans | ✅ | ✅ | | Test plans, test suites (static, requirement-based, query-based), test case associations, and test run history (configurable days, default: 90); test runs optional during restore; cross-project restore supported |
+| Test Plans | ✅ | ✅ | | Test plans, test suites (static, requirement-based, query-based), test case associations, and test run history (configurable days, default: 90); test runs optional during restore (`--include-test-runs`, same-project only); requirement/query suites auto-converted to static if dependencies missing; plans/suites support cross-project restore |
 | Pipeline Environments | ✅ | ✅ | | Environment definitions, resource registrations, approval configurations, and check configurations; create-or-update restore; optional skip of resources/approvals/checks |
 
 ## Permissions Required

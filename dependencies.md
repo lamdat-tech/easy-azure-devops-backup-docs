@@ -86,23 +86,7 @@ The backup order is more flexible than restore order because you're just capturi
 8. Shared Queries         # Queries against work items
 ```
 
-### Backup Command Execution Order
-
-When you run `adobackup.exe backup-all`, resources are backed up in this order:
-
-```csharp
-// From BackupAllCommand.cs internal logic:
-1. Git Repositories      (parallel per repository)
-2. Pull Requests         (parallel per pull request)
-3. Service Connections   (parallel per connection)
-4. Build Definitions     (parallel per definition)
-5. Build History         (parallel per build)
-6. Pipeline Variables    (parallel per group)
-7. Work Items           (parallel in batches)
-8. Shared Queries        (parallel per query)
-```
-
-**Note:** Backup order doesn't create dependencies - you can backup any resource independently.
+**Note:** Backup order doesn't create dependencies - you can backup any resource independently. When you run `adobackup.exe backup-all`, resources are backed up in parallel where possible (per repository, per pull request, per connection, per definition, per build, per group, in batches for work items, per query).
 
 ## Restore Order
 
@@ -139,23 +123,7 @@ The restore order is **critical** because creating dependent resources before th
    └─ Queries search for work items (must exist first); area/iteration filters must already exist
 ```
 
-### Restore Command Execution Order
-
-When you run `adobackup.exe restore-all`, resources are restored in this order:
-
-```csharp
-// From RestoreAllCommand.cs execution order:
-1. Git Repositories      (RestoreGitRepositoriesAsync)
-2. Pull Requests         (RestorePullRequestsAsync)
-3. Service Connections   (RestoreServiceConnectionsAsync)
-4. Pipeline Variables    (RestorePipelineVariablesAsync)
-5. Build Definitions     (RestoreBuildDefinitionsAsync)
-6. Areas & Iterations   (RestoreAreasAndIterationsAsync)  ← before work items
-7. Work Items           (RestoreWorkItemsAsync)
-8. Shared Queries        (RestoreQueriesAsync)
-```
-
-**The utility enforces this order automatically** - you cannot change it when using `restore-all`.
+**The utility enforces this order automatically** when you run `adobackup.exe restore-all` - you cannot change it.
 
 ### Selective Restore Order
 

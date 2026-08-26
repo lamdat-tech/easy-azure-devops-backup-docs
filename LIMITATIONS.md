@@ -1,4 +1,4 @@
-# Azure DevOps API Limitations - Boards, Dashboards & Wiki
+# Azure DevOps API Limitations - Boards, Dashboards, Wiki & Test Plans
 
 This document provides detailed technical information about Azure DevOps API limitations discovered during testing and implementation of the backup and restore utility.
 
@@ -104,35 +104,8 @@ Missing: Elaboration
 **Workaround:**
 1. Backup completes successfully (all data captured)
 2. Restore attempts full board update
-3. If API rejects, utility falls back to partial restore (rows/swimlanes only)
+3. If the API rejects the update, the utility automatically falls back to a partial restore (rows/swimlanes only) and logs a warning
 4. User manually configures custom columns after restore
-
-**Code implementation:**
-```csharp
-try
-{
-    // Try full board restore
-    targetBoard.Columns = boardData.Columns;
-    targetBoard.Rows = boardData.Rows;
-    await _boardsClient.UpdateBoardAsync(...);
-}
-catch (HttpRequestException ex) when (ex.Message.Contains("400"))
-{
-    // Fallback: Restore rows only
-    targetBoard.Rows = boardData.Rows;
-    await _boardsClient.UpdateBoardAsync(...);
-    _logger.Warning("Custom columns could not be restored due to API limitations");
-}
-```
-
-### 📊 Test Results
-
-**Test:** `BackupSpecificBoard_RestoreToDifferentProject_StoriesBoardCrossProjectRestore`
-
-- ✅ Backup: 5 columns captured
-- ⚠️ Restore: 4 columns restored
-- 🔍 Deep verification: Detected missing "Elaboration" column
-- ✅ Test: Passed (lenient - warns about differences but doesn't fail)
 
 ---
 
@@ -170,15 +143,6 @@ Restored widgets: 5 widget(s)
 ✅ Widget count matches
 ```
 
-### 📊 Test Results
-
-**Test:** `CompleteDashboardsWorkflow_BackupRestoreVerifyCleanup_AllDashboards`
-
-- ✅ Backup: All dashboards captured
-- ✅ Restore: Dashboards updated
-- 🔍 Deep verification: Widget counts compared
-- ✅ Test: 8/8 PASS
-
 ---
 
 ## 📚 Wiki - Detailed Limitations
@@ -214,14 +178,66 @@ Restored pages: 0
 ✅ Empty wiki (0 pages) - matches backup
 ```
 
-### 📊 Test Results
+---
 
-**Test:** `BackupWiki_VerifyFiles_RestoreWiki_VerifySuccess`
+## 🧪 Test Plans & Test Run History - Detailed Limitations
 
-- ✅ Backup: All wiki pages captured
-- ✅ Restore: Wiki pages restored
-- 🔍 Deep verification: Page counts and paths compared
-- ✅ Test: 5/5 PASS
+### ✅ What Restores Successfully
+
+| Feature | Support Level | Notes |
+|---------|---------------|-------|
+| **Test plans** | ✅ Full support | Name, description, state, iteration, area path preserved |
+| **Test suites** | ✅ Full support | Static, requirement-based, and query-based suites; hierarchy preserved depth-first |
+| **Test case associations** | ✅ Full support | Validated against target project work items before linking |
+| **Test run history** | ✅ Opt-in support | `--include-all-test-runs` on backup, `--include-test-runs` on restore; both automated and manual runs |
+| **Test result outcome/dates/duration/comment** | ✅ Full support | Preserved exactly for both automated and manual results |
+
+### ⚠️ What Cannot Be Fully Restored
+
+| Feature | Limitation | Reason | Impact |
+|---------|-----------|--------|--------|
+| **`RunBy` (who ran the test)** | Not restored as a structured field | Azure DevOps' Results API silently drops `runBy` unless given a resolvable identity, not just a display name | Original value is appended to the result's comment as `Originally run by: X` instead |
+| **Run-level completed date** | Not preserved on restore | The Runs - Update API does not honor a caller-supplied `completeDate` - it always stamps the actual call time | A restored run's completed timestamp reflects *when the restore ran*, not the original completion time. Per-result `startedDate`/`completedDate` are unaffected and restore exactly |
+| **`testCaseTitle` on some results** | Comes back empty (`""`) after restore | Azure DevOps drops the free-text `testCaseTitle` for a result that has no real `testPoint`/`testCase` association on a plan-linked run (confirmed via live API - not a bug in the utility) | Cosmetic only; `outcome`, dates, `comment`, and `durationInMs` are unaffected |
+| **Cross-project test run restore** | Not supported | Test runs are tied to project-scoped test points/identities in the Azure DevOps Test API; there's no reliable way to remap them to a different project | Requesting `--include-test-runs` together with `--target-project` logs a warning and skips test runs for that plan - plans and suites still restore normally |
+| **Idempotent re-run of test run restore** | Not supported | Unlike test plans/suites, there is no run ID mapping file - so nothing is checked before creating a run | Running `--include-test-runs` again creates a **new, duplicate** set of runs rather than skipping already-restored ones. Use `--test-plan-ids` to scope a re-run to only the plan(s) you actually need, limiting the blast radius |
+| **Full test run history by default** | Bounded to the last 90 days | `--test-runs-days` defaults to 90 to keep routine backups fast | Older runs are excluded unless `--test-runs-days 0` or `--include-all-test-runs` is used |
+
+### 🔬 Technical Details - Scoping Restore to Specific Plans
+
+`--include-test-runs` restores test runs for **every** plan being restored in that invocation - by default that's the whole project. To avoid restoring (and duplicating) runs project-wide, pass `--test-plan-ids` with the specific plan ID(s) from the backup:
+
+```bash
+adobackup.exe testplans-restore --include-test-runs --test-plan-ids 101 -v
+```
+
+This restricts both plan/suite restore and test run restore to plan `101` only - the rest of the project's plans, suites, and runs are left untouched. There's no equivalent filter below the plan level (e.g. by suite or test case) - a test run in Azure DevOps is an atomic collection of results, not something meaningfully sliced by individual test case.
+
+### 🔬 Technical Details - RunBy Attribution
+
+Because the Results API rejects a plain display name for `runBy`, the original value is folded into the result's comment instead:
+
+```
+Originally run by: Jane Doe | seed comment
+```
+
+If the result had no original comment, the annotation stands alone:
+
+```
+Originally run by: Jane Doe
+```
+
+### 🔬 Technical Details - Restored Completed Date
+
+**API behavior (confirmed via direct testing against the Runs - Update endpoint):**
+```
+PATCH .../_apis/test/runs/{runId}?api-version=7.1
+{ "state": "Completed", "completedDate": "2026-05-01T00:00:00Z" }
+
+Response: run.completedDate = <actual PATCH call time>, NOT 2026-05-01
+```
+
+This is a permanent Azure DevOps API limitation, not something the utility can work around - per-result dates remain the source of truth for when a test actually ran.
 
 ---
 
@@ -265,6 +281,26 @@ Restored pages: 0
 3. Use deep verification to confirm page counts match
 4. No manual steps typically needed
 
+### For Test Runs
+
+**Option 1: Treat restored runs as historical records, not live re-executions**
+1. A restored run's completed date reflects restore time, not the original completion time
+2. If exact historical dates matter (audits, compliance), rely on the per-result `startedDate`/`completedDate` fields, which are preserved exactly
+3. `RunBy` is preserved as a `Originally run by: X` comment annotation, not a structured field - reports that filter/group by the structured field on restored runs won't reflect original authorship
+
+**Option 2: Scope restore to the plan(s) you actually need**
+1. There is no run ID mapping for test runs (unlike plans/suites), so re-running `--include-test-runs` duplicates runs - and by default it applies to every plan in the project
+2. Use `--test-plan-ids 101,102` alongside `--include-test-runs` to restrict both which plans and which plans' test runs get restored, instead of restoring/duplicating runs project-wide
+3. Treat `--include-test-runs` as a one-time disaster-recovery action per plan, not a repeatable sync
+
+**Option 3: Restore into the same project**
+1. Test run restore only works when the target project matches the source project
+2. For a cross-project restore, plans/suites still restore normally; recreate historical runs manually in the new project if needed
+
+**Option 4: Adjust the backup window for your retention needs**
+1. Default backup keeps only the last 90 days of run history (`--test-runs-days 90`)
+2. Use `--test-runs-days 0` or `--include-all-test-runs` for complete history (may take longer for extensive test history)
+
 ---
 
 ## 🔍 Deep Verification Features
@@ -304,6 +340,16 @@ Restored pages: 12
 ✅ All page paths match
 ```
 
+### Test Plans & Test Runs Deep Verification
+```csharp
+// Compares run outcome/comment/automated flag after a delete-and-restore cycle
+Source run deleted: ✅ (proves restore rebuilds from backup, not leftover live data)
+
+Restored automated run: outcome=Passed, comment='seed comment'
+Restored manual run:    outcome=Failed, comment='manual seed comment'
+✅ Both runs restored with correct outcome, comment, and automated/manual flag
+```
+
 ---
 
 ## 📝 Reporting Issues
@@ -327,6 +373,7 @@ If you encounter limitations not documented here:
 ## 🔗 Related Documentation
 
 - [Getting Started](./getting-started.md) - Quick start guide
+- [Command Reference](./command-reference.md) - Full CLI reference, including `testplans-backup`/`testplans-restore` options
 - [Pipeline Integration Guide](./pipeline-integration.md) - Task configuration and examples
 - [Troubleshooting](./troubleshooting.md) - Common issues
 - [FAQ](./faq.md) - Frequently asked questions
@@ -336,7 +383,7 @@ If you encounter limitations not documented here:
 
 ## 📅 Last Updated
 
-This document reflects testing results as of **February 2026** against:
-- Azure DevOps API version: **7.1**
+This document reflects testing results as of **August 2026** against:
+- Azure DevOps API version: **7.1** (Boards/Dashboards/Wiki); **7.0** (Test Plans/Suites), **7.1** (Test Runs/Results)
 - Utility version: **Latest**
-- Test coverage: **22 E2E tests** (9 Boards, 8 Dashboards, 5 Wiki)
+- Test coverage: **39 E2E tests** (9 Boards, 8 Dashboards, 5 Wiki, 17 Test Plans & Test Run History - including a dedicated automated + manual test run round-trip and a `--test-plan-ids` filter test)

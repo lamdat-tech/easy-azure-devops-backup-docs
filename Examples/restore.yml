@@ -141,6 +141,11 @@ parameters:
     type: boolean
     default: false
 
+  - name: 'testPlanIds'
+    displayName: 'Test Plan IDs (comma-separated, * = all)'
+    type: string
+    default: '*'  # * = all test plans, or specify comma-separated plan IDs like '101,102'
+
   # Git-specific options
   - name: 'gitRepositories'
     displayName: 'Git Repositories (comma-separated, * = all)'
@@ -293,6 +298,7 @@ jobs:
 
         # Test Plans-specific options
         IncludeTestRuns: ${{ parameters.includeTestRuns }}
+        TestPlanIds: '${{ parameters.testPlanIds }}'
 
     # Upload CLI log files for troubleshooting and audit trail
     - task: PublishBuildArtifacts@1

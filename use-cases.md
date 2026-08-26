@@ -611,7 +611,7 @@ adobackup.exe testplans-backup \
 ```bash
 # Backup all test runs (entire history)
 adobackup.exe testplans-backup \
-  --test-runs-all \
+  --include-all-test-runs \
   -v
 
 # Alternative: Specify longer date range (e.g., 2 years)
@@ -688,15 +688,9 @@ adobackup.exe testplans-restore \
 **Solution:**
 
 ```bash
-# Restore plans and suites only (default behavior)
+# Restore plans and suites only (default behavior - no flag needed, --include-test-runs defaults to false)
 adobackup.exe testplans-restore \
   -p "ProjectA" \
-  -v
-
-# Explicitly without runs
-adobackup.exe testplans-restore \
-  -p "ProjectA" \
-  --include-runs false \
   -v
 ```
 
@@ -714,33 +708,34 @@ adobackup.exe testplans-restore \
 
 **Requirements:**
 - Restore test plans, suites, and runs
-- Preserve execution history
-- Maintain test result data
+- Preserve per-result execution data (outcome, dates, duration)
+- Same source and target project (test run restore does not support cross-project in this version)
 
 **Solution:**
 
 ```bash
-# Restore plans, suites, and runs
+# Restore plans, suites, and runs (same project)
 adobackup.exe testplans-restore \
   -p "ProjectA" \
-  --include-runs \
-  -v
-
-# Cross-project restore with runs
-adobackup.exe testplans-restore \
-  -p "SourceProject" \
-  --target-project "TargetProject" \
-  --include-runs \
+  --include-test-runs \
   -v
 ```
 
 **Expected Outcome:**
 - Test plans and suites restored
-- Test runs restored with original metadata
-- Test results linked to new plan/suite IDs
-- Execution history preserved
+- Test runs recreated with their results (outcome, start/completion dates, duration restored exactly)
+- The restored run's own completed timestamp reflects when the restore ran, not the original completion
+  time (Azure DevOps doesn't accept a historical value there)
+- `RunBy` is preserved as an "Originally run by: X" note in each result's comment, not as a structured field
+  (Azure DevOps requires a resolvable identity, not just a name)
 
-**Note:** Test run IDs are remapped to target project IDs via ID mapping files.
+**Important:**
+- **Cross-project restore does not include test runs.** `--target-project` combined with
+  `--include-test-runs` restores plans/suites to the target project as usual, but logs a warning and skips
+  test runs for that plan - it will not fail the restore or silently succeed without you knowing.
+- **Re-running is not idempotent for test runs.** Unlike plans/suites (which reuse existing IDs via mapping
+  files), there is no ID mapping for test runs - running `--include-test-runs` again creates a second,
+  duplicate set of runs rather than skipping ones already restored.
 
 ---
 

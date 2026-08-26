@@ -458,9 +458,26 @@ The test plans backup includes:
 
 By default, the last **90 days** of test run history is backed up. You can customize this:
 
-Use the `TestRunsDays` or `TestRunsAll` inputs on `AzureDevOpsBackupTask`. By default, the last 90 days are backed up.
+- CLI: `--test-runs-days <N>` (set to `0` for all history), or `--include-all-test-runs` to always include everything
+- VSIX pipeline task: the `TestRunsDays` or `IncludeAllTestRuns` inputs on `AzureDevOpsBackupTask`
 
 **Note:** Backing up all test runs may take a long time for organizations with extensive test history.
+
+### Can test runs be restored?
+
+Yes, with two things worth knowing before you rely on it:
+
+- It's **off by default** and same-project only: pass `--include-test-runs` (CLI) or check "Include Test Runs"
+  (the `AzureDevOpsRestoreTask` VSIX input). Requesting it together with a cross-project restore skips test
+  runs for that plan (with a warning) rather than silently dropping data - plans/suites still restore normally.
+- Azure DevOps's Test Runs API doesn't let a restored run keep its *original* completed timestamp or its
+  original `RunBy` identity - those two fields aren't restorable exactly as they were. Everything else
+  (per-result outcome, start/completion dates, duration, comments) restores with full fidelity, and the
+  original `RunBy` is preserved as an "Originally run by: X" note in the result's comment so the information
+  isn't lost, just not in its original field.
+- Re-running a restore with `--include-test-runs` creates a fresh set of test runs each time (there's no
+  ID mapping for runs the way there is for plans/suites) - it's not idempotent like the rest of test plans
+  restore.
 
 ### What happens to requirement-based and query-based suites during restore?
 
