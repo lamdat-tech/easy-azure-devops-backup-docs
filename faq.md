@@ -86,7 +86,7 @@ Estimate based on your organization:
 Yes! Use the include flag inputs on `AzureDevOpsBackupTask`:
 
 ```yaml
-- task: AzureDevOpsBackupTask@0
+- task: AzureDevOpsBackupTask@1
   env:
     ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
   inputs:
@@ -140,7 +140,7 @@ Build history is valuable for audit trails and compliance. The backup task alway
 Yes! Use the `TargetOrganizationUrl` and `TargetPat` inputs on `AzureDevOpsRestoreTask`:
 
 ```yaml
-- task: AzureDevOpsRestoreTask@0
+- task: AzureDevOpsRestoreTask@1
   env:
     ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
   inputs:
@@ -421,7 +421,7 @@ No, the backup task does not support merging. Each backup is organization-specif
 2. Pass it as `ADOBACKUP_LICENSE_KEY` environment variable to **both** the backup and restore tasks:
 
 ```yaml
-- task: AzureDevOpsBackupTask@0
+- task: AzureDevOpsBackupTask@1
   env:
     ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)  # Required
   inputs:

@@ -207,7 +207,7 @@ jobs:
     - checkout: Self
       persistCredentials: true
       
-    - task: AzureDevOpsBackupTask@0
+    - task: AzureDevOpsBackupTask@1
       displayName: 'Perform Azure DevOps Backup'
       env:
         ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)  # Pass secret directly as environment variable

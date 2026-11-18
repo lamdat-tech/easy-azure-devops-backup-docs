@@ -34,7 +34,7 @@ name: DailyBackup
 schedules:
   - cron: "0 2 * * *"
 steps:
-  - task: AzureDevOpsBackupTask@0
+  - task: AzureDevOpsBackupTask@1
     inputs:
       BackupMode: 'Incremental'
       Verbose: true
@@ -47,7 +47,7 @@ name: WeeklyFullBackup
 schedules:
   - cron: "0 1 * * 0"
 steps:
-  - task: AzureDevOpsBackupTask@0
+  - task: AzureDevOpsBackupTask@1
     inputs:
       BackupMode: 'Full'
 ```
@@ -198,7 +198,7 @@ name: MonthlyArchival
 schedules:
   - cron: "0 1 1 * *"
 steps:
-  - task: AzureDevOpsBackupTask@0
+  - task: AzureDevOpsBackupTask@1
     inputs:
       BackupMode: 'Full'
       BackupRoot: '$(Backup.Root)\Archive\$(Date:yyyy-MM)'
@@ -303,7 +303,7 @@ schedules:
 jobs:
 - job: BackupWorkItems
   steps:
-    - task: AzureDevOpsBackupTask@0
+    - task: AzureDevOpsBackupTask@1
       inputs:
         BackupMode: 'Incremental'
         SkipGit: true
@@ -459,7 +459,7 @@ name: ProductionBackup
 schedules:
   - cron: "0 2 * * *"
 steps:
-  - task: AzureDevOpsBackupTask@0
+  - task: AzureDevOpsBackupTask@1
     inputs:
       Projects: 'ProductionProject'
       BackupMode: 'Incremental'
@@ -481,7 +481,7 @@ adobackup.exe backup-all \
 # Development backup with default warning behavior
 name: DevBackup
 steps:
-  - task: AzureDevOpsBackupTask@0
+  - task: AzureDevOpsBackupTask@1
     inputs:
       Projects: 'DevProject'
       BackupMode: 'Incremental'
@@ -502,7 +502,7 @@ adobackup.exe backup-all \
 # Archive backup that must complete regardless
 name: ArchiveBackup
 steps:
-  - task: AzureDevOpsBackupTask@0
+  - task: AzureDevOpsBackupTask@1
     inputs:
       Projects: 'OldProjects'
       BackupMode: 'Full'

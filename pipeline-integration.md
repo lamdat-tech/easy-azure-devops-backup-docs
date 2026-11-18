@@ -87,7 +87,7 @@ After receiving your license key:
 2. Pass it as `ADOBACKUP_LICENSE_KEY` environment variable to **each** backup and restore task:
 
 ```yaml
-- task: AzureDevOpsBackupTask@0
+- task: AzureDevOpsBackupTask@1
   env:
     ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)  # Pass secret directly as environment variable to each task
   inputs:
@@ -184,7 +184,7 @@ jobs:
         packageType: 'runtime'
         version: '$(dotnetVersion)'
 
-    - task: AzureDevOpsBackupTask@0
+    - task: AzureDevOpsBackupTask@1
       displayName: 'Perform Incremental Backup'
       env:
         ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
@@ -248,7 +248,7 @@ jobs:
   steps:
     - checkout: self
 
-    - task: AzureDevOpsBackupTask@0
+    - task: AzureDevOpsBackupTask@1
       displayName: 'Backup Git Repositories'
       env:
         ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
@@ -318,7 +318,7 @@ jobs:
         }
       displayName: 'Determine Backup Mode'
 
-    - task: AzureDevOpsBackupTask@0
+    - task: AzureDevOpsBackupTask@1
       displayName: 'Perform $(BackupMode) Backup'
       env:
         ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
@@ -355,7 +355,7 @@ jobs:
   steps:
     - checkout: self
 
-    - task: AzureDevOpsBackupTask@0
+    - task: AzureDevOpsBackupTask@1
       displayName: 'Full Backup'
       env:
         ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
@@ -427,7 +427,7 @@ jobs:
   steps:
     - checkout: self
 
-    - task: AzureDevOpsRestoreTask@0
+    - task: AzureDevOpsRestoreTask@1
       displayName: 'Perform Azure DevOps Restore'
       env:
         ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
@@ -494,7 +494,7 @@ jobs:
   steps:
     - checkout: self
 
-    - task: AzureDevOpsRestoreTask@0
+    - task: AzureDevOpsRestoreTask@1
       displayName: 'Restore to Target Organization'
       env:
         ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
@@ -552,7 +552,7 @@ jobs:
   steps:
     - checkout: self
 
-    - task: AzureDevOpsRestoreTask@0
+    - task: AzureDevOpsRestoreTask@1
       displayName: 'Restore Selected Resources'
       env:
         ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
@@ -712,7 +712,7 @@ stages:
     jobs:
       - job: BackupJob
         steps:
-          - task: AzureDevOpsBackupTask@0
+          - task: AzureDevOpsBackupTask@1
             env:
               ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
             inputs:
@@ -750,7 +750,7 @@ stages:
     }
   displayName: 'Check Backup Freshness'
 
-- task: AzureDevOpsRestoreTask@0
+- task: AzureDevOpsRestoreTask@1
   # Restore configuration
 ```
 

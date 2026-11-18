@@ -105,7 +105,7 @@ jobs:
   displayName: 'Backup Azure DevOps'
   
   steps:
-    - task: AzureDevOpsBackupTask@0
+    - task: AzureDevOpsBackupTask@1
       displayName: 'Perform Incremental Backup'
       env:
         ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)  # Pass secret directly as environment variable
