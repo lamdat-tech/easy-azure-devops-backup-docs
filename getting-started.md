@@ -56,7 +56,7 @@ Once you receive your license key, store it as a **secret variable** in your var
 The license key must be passed as the `ADOBACKUP_LICENSE_KEY` environment variable to **both** the backup task and the restore task:
 
 ```yaml
-- task: AzureDevOpsBackupTask@0
+- task: AzureDevOpsBackupTask@1
   env:
     ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)  # Pass secret directly as environment variable
   inputs:
@@ -122,7 +122,7 @@ jobs:
     - checkout: self
       persistCredentials: true
 
-    - task: AzureDevOpsBackupTask@0
+    - task: AzureDevOpsBackupTask@1
       displayName: 'Perform Incremental Backup'
       env:
         ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)  # Pass secret directly as environment variable
@@ -188,7 +188,7 @@ jobs:
     - checkout: self
       persistCredentials: true
 
-    - task: AzureDevOpsRestoreTask@0
+    - task: AzureDevOpsRestoreTask@1
       displayName: 'Perform Azure DevOps Restore'
       env:
         ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)  # Pass secret directly as environment variable

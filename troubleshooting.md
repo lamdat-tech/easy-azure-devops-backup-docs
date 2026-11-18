@@ -26,7 +26,7 @@ When encountering any issue, follow these steps:
 Set `Verbose: true` in your task inputs:
 
 ```yaml
-- task: AzureDevOpsBackupTask@0
+- task: AzureDevOpsBackupTask@1
   env:
     ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
   inputs:
@@ -759,7 +759,7 @@ License validation failed: Invalid license key
 
 **1. Verify the `env` block is present on the task:**
 ```yaml
-- task: AzureDevOpsBackupTask@0
+- task: AzureDevOpsBackupTask@1
   env:
     ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)  # Required on BOTH backup and restore tasks
   inputs:
@@ -802,8 +802,8 @@ Install the **Azure DevOps Backup & Restore** extension from the Visual Studio M
 
 **2. Verify the task name and version:**
 ```yaml
-- task: AzureDevOpsBackupTask@0   # Backup
-- task: AzureDevOpsRestoreTask@0  # Restore
+- task: AzureDevOpsBackupTask@1   # Backup
+- task: AzureDevOpsRestoreTask@1  # Restore
 ```
 
 ### Issue: Pipeline Timeout
@@ -826,7 +826,7 @@ jobs:
 - job: BackupJob
   timeoutInMinutes: 240  # 4 hours
   steps:
-    - task: AzureDevOpsBackupTask@0
+    - task: AzureDevOpsBackupTask@1
 ```
 
 **2. Use incremental mode:**
@@ -841,7 +841,7 @@ jobs:
 - job: BackupGit
   timeoutInMinutes: 120
   steps:
-    - task: AzureDevOpsBackupTask@0
+    - task: AzureDevOpsBackupTask@1
       inputs:
         SkipBuilds: true
         SkipWorkItems: true
@@ -849,7 +849,7 @@ jobs:
 - job: BackupBuilds
   timeoutInMinutes: 120
   steps:
-    - task: AzureDevOpsBackupTask@0
+    - task: AzureDevOpsBackupTask@1
       inputs:
         SkipGit: true
         SkipWorkItems: true

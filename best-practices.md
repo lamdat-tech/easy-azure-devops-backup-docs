@@ -46,7 +46,7 @@ az storage blob upload-batch --destination adobackups --source "$(Backup.Root)"
 
 **Full Backup Mode** — set `BackupMode: 'Full'` in the task input:
 ```yaml
-- task: AzureDevOpsBackupTask@0
+- task: AzureDevOpsBackupTask@1
   env:
     ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
   inputs:
@@ -57,7 +57,7 @@ az storage blob upload-batch --destination adobackups --source "$(Backup.Root)"
 
 **Incremental Backup Mode** — set `BackupMode: 'Incremental'`:
 ```yaml
-- task: AzureDevOpsBackupTask@0
+- task: AzureDevOpsBackupTask@1
   env:
     ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
   inputs:
@@ -369,7 +369,7 @@ E:\ADOBackupArchive\
 
 Store secrets in Azure Key Vault and link them to your pipeline variable group via the Azure DevOps Library. Mark them as secret variables, then reference them in the task:
 ```yaml
-- task: AzureDevOpsBackupTask@0
+- task: AzureDevOpsBackupTask@1
   env:
     ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
   inputs:
@@ -420,7 +420,7 @@ Set-Acl "D:\ADOBackups" $acl
 
 Set `Verbose: true` in the task inputs and publish logs as pipeline artifacts:
 ```yaml
-- task: AzureDevOpsBackupTask@0
+- task: AzureDevOpsBackupTask@1
   env:
     ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
   inputs:
@@ -443,7 +443,7 @@ Set `Verbose: true` in the task inputs and publish logs as pipeline artifacts:
 Use the `MaxParallelism` task input to control concurrent operations. Default is 4.
 
 ```yaml
-- task: AzureDevOpsBackupTask@0
+- task: AzureDevOpsBackupTask@1
   env:
     ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
   inputs:
@@ -475,7 +475,7 @@ Use the `MaxParallelism` task input to control concurrent operations. Default is
 
 **Example 1: Backup only critical projects**
 ```yaml
-- task: AzureDevOpsBackupTask@0
+- task: AzureDevOpsBackupTask@1
   env:
     ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
   inputs:
@@ -486,7 +486,7 @@ Use the `MaxParallelism` task input to control concurrent operations. Default is
 
 **Example 2: Backup only specific components**
 ```yaml
-- task: AzureDevOpsBackupTask@0
+- task: AzureDevOpsBackupTask@1
   env:
     ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
   inputs:
@@ -501,7 +501,7 @@ Use the `MaxParallelism` task input to control concurrent operations. Default is
 
 **Example 3: Limit build history**
 ```yaml
-- task: AzureDevOpsBackupTask@0
+- task: AzureDevOpsBackupTask@1
   env:
     ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
   inputs:
@@ -574,7 +574,7 @@ schedules:
 
 **Monthly Test — dry run to validate:**
 ```yaml
-- task: AzureDevOpsRestoreTask@0
+- task: AzureDevOpsRestoreTask@1
   env:
     ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
   inputs:
@@ -590,7 +590,7 @@ schedules:
 
 **Quarterly Full Test — actual restore:**
 ```yaml
-- task: AzureDevOpsRestoreTask@0
+- task: AzureDevOpsRestoreTask@1
   env:
     ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
   inputs:
@@ -770,7 +770,7 @@ schedules:
         - main
 
 steps:
-  - task: AzureDevOpsBackupTask@0
+  - task: AzureDevOpsBackupTask@1
     env:
       ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
     inputs:
@@ -794,7 +794,7 @@ Use separate pipeline runs for each tier, each targeting a different `BackupRoot
 
 ```yaml
 # Tier 1: Critical projects (every 4 hours)
-- task: AzureDevOpsBackupTask@0
+- task: AzureDevOpsBackupTask@1
   env:
     ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)
   inputs:
@@ -929,7 +929,7 @@ jobs:
       displayName: 'Determine Backup Mode'
 
     # Step 2: Run adobackup (updates BackupRoot)
-    - task: AzureDevOpsBackupTask@0
+    - task: AzureDevOpsBackupTask@1
       displayName: 'Run $(BackupMode) Backup'
       env:
         ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey)

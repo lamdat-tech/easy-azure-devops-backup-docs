@@ -229,7 +229,7 @@ jobs:
     - checkout: Self
       persistCredentials: true   
 
-    - task: AzureDevOpsRestoreTask@0
+    - task: AzureDevOpsRestoreTask@1
       displayName: 'Perform Azure DevOps Restore'
       env:
         ADOBACKUP_LICENSE_KEY: $(Backup.LicenseKey) 
